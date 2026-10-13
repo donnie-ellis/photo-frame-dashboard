@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.2.0
-  summary: Calendar, shopping list and lights for the family dashboard.
+  version: 0.3.0
+  summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
-    list through EventKit, and talks to the Philips Hue Bridge over its local CLIP v2 API.
+    list through EventKit, talks to the Philips Hue Bridge over its local CLIP v2 API, reads the
+    Photos library through PhotoKit, and fetches the forecast from Open-Meteo.
     Design notes, decisions and setup: [apple-integration.md](../apple-integration.md).
 
     Shapes match the objects in `dashboard/js/data.js`, so the views work unchanged.
@@ -39,6 +40,10 @@ tags:
     description: Apple Reminders "Shopping" list via EventKit. Read only in this version.
   - name: lights
     description: Philips Hue via the Hue Bridge CLIP v2 API.
+  - name: weather
+    description: Forecast from Open-Meteo, fetched and cached by frame-bridge. Read only.
+  - name: photos
+    description: The "Frame" album and "On this day" photos via PhotoKit. Read only.
   - name: system
     description: Health and live updates.
 
@@ -167,6 +172,90 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
+  /api/weather:
+    get:
+      operationId: getWeather
+      tags: [weather]
+      summary: Get today's and tomorrow's forecast
+      description: |
+        frame-bridge fetches Open-Meteo for the home location in its config (never in this repo)
+        about every 30 minutes, and serves the last good copy if Open-Meteo is unreachable.
+        Units come from the config (`°C` and `°F` both fit the shape).
+      responses:
+        '200':
+          description: The forecast.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Weather' }
+              example:
+                start: '2026-10-13T00:00:00-04:00'
+                hi: 17
+                lo: 8
+                t: [9, 9, 8, 8, 8, 8, 9, 10, 11, 12, 13, 15, 16, 17, 16, 15, 14, 13, 12, 12, 11, 10, 10, 9, 9, 8, 8, 8, 7, 7, 8, 9, 10, 12, 13, 14, 15, 15, 14, 13, 12, 11, 10, 10, 9, 9, 9, 8]
+                c: [moon, moon, moon, moon, moon, moon, partly, partly, sun, sun, sun, partly, partly, cloud, cloud, cloud, rain, rain, rain, rain, cloud, cloud, moon, moon, moon, moon, moon, moon, moon, moon, partly, sun, sun, sun, sun, sun, sun, partly, partly, partly, partly, moon, moon, moon, moon, moon, moon, moon]
+                p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 10, 20, 25, 40, 80, 90, 70, 55, 20, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/photos:
+    get:
+      operationId: listPhotos
+      tags: [photos]
+      summary: List photos for the slideshow
+      description: |
+        Photos from the "Frame" album (the album name is in frame-bridge's config), plus photos
+        from the whole library taken on today's month and day in earlier years ("On this day").
+        The dashboard detects "On this day" from `date`, so both kinds are in one list.
+
+        A large album is sampled: at most 300 album photos, re-shuffled daily, plus at most 30
+        "On this day" photos. Videos and screenshots are skipped.
+      responses:
+        '200':
+          description: Photos, in no particular order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Photo' }
+              example:
+                - { id: 'B7E1C2A0-0000-4000-8000-000000000001/L0/001', o: l, date: '2023-08-12', place: Lake of Bays, tag: '2023-08-12-1', fav: true }
+                - { id: 'B7E1C2A0-0000-4000-8000-000000000002/L0/001', o: p, date: '2024-05-19', place: Humber Bay Park, tag: '2024-05-19-1', fav: false }
+                - { id: 'B7E1C2A0-0000-4000-8000-000000000003/L0/001', o: p, date: '2024-05-19', place: Humber Bay Park, tag: '2024-05-19-1', fav: false }
+                - { id: 'B7E1C2A0-0000-4000-8000-000000000004/L0/001', o: l, date: '2019-10-13', tag: '2019-10-13-1', fav: false }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/photos/{id}/image:
+    get:
+      operationId: getPhotoImage
+      tags: [photos]
+      summary: Get a photo, resized for the frame
+      description: |
+        A JPEG resized on the Mac mini, so the frame never decodes full-resolution photos.
+        Rendered images are cached on disk. The response has `Cache-Control: max-age=86400`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A `Photo.id`. URL-encode it (ids contain `/`).
+          schema: { type: string }
+        - name: size
+          in: query
+          required: false
+          description: |
+            `full`: fits in 1280×1280 (the long edge is at most 1280). `half`: fits in 640×640, for
+            tiles and polaroids.
+          schema: { type: string, enum: [full, half], default: full }
+      responses:
+        '200':
+          description: The image.
+          content:
+            image/jpeg:
+              schema: { type: string, contentMediaType: image/jpeg }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
   /api/events:
     get:
       operationId: streamEvents
@@ -180,6 +269,8 @@ paths:
         | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
         | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
         | `light` | `Light` | Replace that light in place |
+        | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
+        | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
 
         The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
         a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
@@ -227,6 +318,8 @@ paths:
                   calendar: { status: ok, updatedAt: '2026-10-12T17:00:02-04:00', staleAfterSeconds: 900, authorization: fullAccess }
                   shopping: { status: ok, updatedAt: '2026-10-12T17:04:11-04:00', staleAfterSeconds: 300, authorization: fullAccess }
                   lights: { status: error, updatedAt: '2026-10-12T16:41:55-04:00', staleAfterSeconds: 120, detail: Hue Bridge not reachable }
+                  weather: { status: ok, updatedAt: '2026-10-12T16:30:00-04:00', staleAfterSeconds: 7200 }
+                  photos: { status: ok, updatedAt: '2026-10-12T06:00:00-04:00', staleAfterSeconds: 172800, authorization: authorized }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
@@ -274,8 +367,9 @@ components:
           example: { error: not_found, detail: 'no light with that id' }
     SourceUnavailable:
       description: |
-        The source behind this feed is unavailable: EventKit access not granted, Reminders list
-        missing, or the Hue Bridge unreachable. The dashboard keeps showing what it had.
+        The source behind this feed is unavailable: EventKit or Photos access not granted,
+        Reminders list or "Frame" album missing, Hue Bridge unreachable, or no forecast fetched
+        yet. The dashboard keeps showing what it had.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -455,7 +549,7 @@ components:
         - type: object
           required: [event, data]
           properties:
-            event: { type: string, enum: [calendar, shopping] }
+            event: { type: string, enum: [calendar, shopping, weather, photos] }
             data: { $ref: '#/components/schemas/ChangeNotice' }
         - type: object
           required: [event, data]
@@ -466,7 +560,7 @@ components:
     ChangeNotice:
       type: object
       required: [changedAt]
-      description: '`data` of `calendar` and `shopping` events: something changed, re-fetch.'
+      description: '`data` of `calendar`, `shopping`, `weather` and `photos` events: something changed, re-fetch.'
       properties:
         changedAt:
           type: string
@@ -488,8 +582,10 @@ components:
           description: How old `updatedAt` may get before the dashboard shows the feed as stale.
         authorization:
           type: string
-          description: EventKit authorization status (calendar and shopping only).
-          enum: [fullAccess, writeOnly, denied, restricted, notDetermined]
+          description: |
+            Privacy authorization status. EventKit values for calendar and shopping, PhotoKit
+            values (`authorized`, `limited`, ...) for photos. Omitted for lights and weather.
+          enum: [fullAccess, writeOnly, authorized, limited, denied, restricted, notDetermined]
         detail:
           type: string
           description: What's wrong, when `status` is `error`.
@@ -507,8 +603,87 @@ components:
           description: frame-bridge's implemented contract version (`info.version`).
         feeds:
           type: object
-          required: [calendar, shopping, lights]
+          required: [calendar, shopping, lights, weather, photos]
           properties:
             calendar: { $ref: '#/components/schemas/FeedHealth' }
             shopping: { $ref: '#/components/schemas/FeedHealth' }
             lights: { $ref: '#/components/schemas/FeedHealth' }
+            weather: { $ref: '#/components/schemas/FeedHealth' }
+            photos: { $ref: '#/components/schemas/FeedHealth' }
+
+    Weather:
+      type: object
+      required: [start, hi, lo, t, c, p]
+      description: |
+        Hourly arrays for today and tomorrow, local time. Index `i` is the hour starting at `start`
+        plus `i` hours, so index `h` (0–23) is today's hour `h`, as the dashboard reads them. On a
+        DST change day this is off by an hour after the switch; accepted.
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Local midnight today, with offset.
+        hi:
+          type: number
+          description: Today's high, in the configured unit.
+        lo:
+          type: number
+          description: Today's low, in the configured unit.
+        t:
+          type: array
+          description: Temperature per hour, rounded.
+          items: { type: number }
+          minItems: 48
+          maxItems: 48
+        c:
+          type: array
+          description: Condition per hour.
+          items: { $ref: '#/components/schemas/WeatherCondition' }
+          minItems: 48
+          maxItems: 48
+        p:
+          type: array
+          description: Chance of precipitation per hour, percent.
+          items: { type: integer, minimum: 0, maximum: 100 }
+          minItems: 48
+          maxItems: 48
+
+    WeatherCondition:
+      type: string
+      description: |
+        An icon name in `dashboard/js/icons.js`. `sun` is clear by day, `moon` clear by night.
+        `snow` and `storm` have no icon yet; the dashboard adds them when the feed is wired.
+        Open-Meteo weather codes map as: 0–1 → sun/moon, 2 → partly, 3, 45, 48 → cloud,
+        51–67, 80–82 → rain, 71–77, 85–86 → snow, 95–99 → storm.
+      enum: [sun, moon, partly, cloud, rain, snow, storm]
+
+    Photo:
+      type: object
+      required: [id, o, date, tag, fav]
+      properties:
+        id:
+          type: string
+          description: |
+            PhotoKit `localIdentifier`. Stable for the life of the asset. The image is at
+            `/api/photos/{id}/image`.
+        o:
+          type: string
+          enum: [l, p]
+          description: Orientation, `l` landscape (square counts as landscape) or `p` portrait.
+        date:
+          type: string
+          format: date
+          description: The day it was taken, local to where it was taken (`YYYY-MM-DD`).
+        place:
+          type: string
+          description: |
+            A short place name from the photo's location, reverse-geocoded on the Mac and cached.
+            Omitted when the photo has no location.
+        tag:
+          type: string
+          description: |
+            Groups photos from the same outing (same day, about the same place), so the
+            slideshow can pair them. Opaque.
+        fav:
+          type: boolean
+          description: Favorite in Photos. Read only in this version.
