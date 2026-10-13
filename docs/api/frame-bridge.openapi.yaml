@@ -1,0 +1,518 @@
+openapi: 3.1.0
+info:
+  title: frame-bridge
+  version: 0.1.0
+  summary: Calendar, shopping list and lights for the family dashboard.
+  description: |
+    frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
+    list through EventKit, and talks to the Philips Hue Bridge over its local CLIP v2 API.
+    Design notes, decisions and setup: [apple-integration.md](../apple-integration.md).
+
+    Shapes match the objects in `dashboard/js/data.js`, so the views work unchanged.
+
+    Conventions:
+    - Times are ISO 8601 strings **with a UTC offset** (`2026-10-12T14:00:00-04:00`).
+      The dashboard converts them to `Date`.
+    - IDs are opaque strings. Don't parse them.
+    - Optional fields are omitted when there is no value. They are never `null`.
+    - Errors use the `Error` schema.
+  license:
+    name: Private
+    identifier: LicenseRef-Private
+servers:
+  - url: http://{host}:8787
+    description: frame-bridge on the Mac mini, on the LAN. No Access token needed.
+    variables:
+      host:
+        default: mac-mini.invalid
+        description: The Mac mini's LAN hostname or IP. Placeholder, set your own.
+  - url: https://{tunnelHost}
+    description: Through Cloudflare Tunnel + Access.
+    variables:
+      tunnelHost:
+        default: bridge.invalid
+        description: The tunnel hostname. Placeholder, set your own.
+security:
+  - accessClientId: []
+    accessClientSecret: []
+tags:
+  - name: calendar
+    description: Apple Calendar via EventKit. Read only.
+  - name: shopping
+    description: Apple Reminders "Shopping" list via EventKit. Read only in this version.
+  - name: lights
+    description: Philips Hue via the Hue Bridge CLIP v2 API.
+  - name: system
+    description: Health and live updates.
+
+paths:
+  /api/calendar:
+    get:
+      operationId: listEvents
+      tags: [calendar]
+      summary: List events in a time range
+      description: |
+        Events that overlap `[from, to)`. Recurring events are expanded into one entry per
+        occurrence. The range may be at most 120 days.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Start of the range, inclusive. ISO 8601 with offset.
+          schema: { type: string, format: date-time }
+          example: '2026-09-01T00:00:00-04:00'
+        - name: to
+          in: query
+          required: true
+          description: End of the range, exclusive. ISO 8601 with offset.
+          schema: { type: string, format: date-time }
+          example: '2026-11-30T00:00:00-05:00'
+      responses:
+        '200':
+          description: Events overlapping the range, sorted by `start`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Event' }
+              example:
+                - id: 'A1B2C3D4-0000-4000-8000-000000000001:2026-10-12T00:00:00-04:00'
+                  title: Pajama Day at school
+                  start: '2026-10-12T00:00:00-04:00'
+                  end: '2026-10-13T00:00:00-04:00'
+                  allDay: true
+                  people: [otto]
+                - id: 'A1B2C3D4-0000-4000-8000-000000000002:2026-10-12T12:00:00-04:00'
+                  title: Dentist
+                  start: '2026-10-12T12:00:00-04:00'
+                  end: '2026-10-12T12:45:00-04:00'
+                  allDay: false
+                  people: [maya, jordan]
+                  loc: Bright Smiles Dental
+                  notes: Bring the insurance card.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/shopping:
+    get:
+      operationId: getShoppingList
+      tags: [shopping]
+      summary: Get the shopping list
+      description: |
+        Open items from the Reminders "Shopping" list, plus items completed in the last few hours
+        (`done: true`) so the dashboard can show them struck through. Also returns the stores, so
+        every `store` id on an item resolves.
+      responses:
+        '200':
+          description: The shopping list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShoppingList' }
+              example:
+                stores:
+                  - { id: grocer, name: FreshCo }
+                  - { id: costco, name: Costco }
+                items:
+                  - { id: 'x-apple-reminder://0001', name: Bananas, note: 'Bunch, not too ripe', done: false, qty: 1, cat: Produce, store: grocer }
+                  - { id: 'x-apple-reminder://0002', name: Avocados, done: false, qty: 3, cat: Produce, store: grocer }
+                  - { id: 'x-apple-reminder://0003', name: Paper towels, done: false, qty: 1, cat: Household, store: costco }
+                  - { id: 'x-apple-reminder://0004', name: Butter, done: true, qty: 1, cat: Dairy & Eggs, store: grocer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/lights:
+    get:
+      operationId: listLights
+      tags: [lights]
+      summary: List rooms and lights
+      responses:
+        '200':
+          description: Hue rooms and the lights in them.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LightsState' }
+              example:
+                rooms:
+                  - { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen }
+                devices:
+                  - { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 80 }
+                  - { id: '6d2b7c11-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Island, on: false, level: 100 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/lights/{id}:
+    put:
+      operationId: setLight
+      tags: [lights]
+      summary: Turn a light on or off, or dim it
+      description: |
+        Send `on`, `level`, or both. `{ "on": true }` alone restores the light's last level.
+        Setting `level` on a light that is off turns it on. The dashboard turns lights off with
+        `{ "on": false }`, never `level: 0`.
+      parameters:
+        - $ref: '#/components/parameters/LightId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LightPatch' }
+            example: { on: true, level: 60 }
+      responses:
+        '200':
+          description: The light's state after the change, as the bridge reports it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Light' }
+              example: { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 60 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/events:
+    get:
+      operationId: streamEvents
+      tags: [system]
+      summary: Live updates (Server-Sent Events)
+      description: |
+        A `text/event-stream` that tells the dashboard when something changed. Event names:
+
+        | `event:` | `data:` schema | Dashboard action |
+        | --- | --- | --- |
+        | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
+        | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
+        | `light` | `Light` | Replace that light in place |
+
+        The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
+        a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
+        Changes are debounced: one `calendar` notice per burst of `EKEventStoreChanged`.
+      responses:
+        '200':
+          description: The event stream. Stays open.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: A stream of `ServerEvent`s in SSE wire format.
+                contentSchema: { $ref: '#/components/schemas/ServerEvent' }
+              example: |
+                retry: 5000
+
+                event: light
+                data: {"id":"6d2b7c11-0000-4000-8000-000000000001","room":"0f6c1a9e-0000-4000-8000-00000000000a","type":"light","name":"Pendants","on":false,"level":80}
+
+                event: shopping
+                data: {"changedAt":"2026-10-12T17:04:11-04:00"}
+
+                : ping
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [system]
+      summary: Service and feed health
+      description: |
+        Always 200 while the process runs, even when feeds are failing: read `status` and the
+        per-feed fields. The dashboard marks a feed stale when `now - updatedAt` exceeds
+        `staleAfterSeconds`.
+      responses:
+        '200':
+          description: Health report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example:
+                status: degraded
+                version: 0.1.0
+                feeds:
+                  calendar: { status: ok, updatedAt: '2026-10-12T17:00:02-04:00', staleAfterSeconds: 900, authorization: fullAccess }
+                  shopping: { status: ok, updatedAt: '2026-10-12T17:04:11-04:00', staleAfterSeconds: 300, authorization: fullAccess }
+                  lights: { status: error, updatedAt: '2026-10-12T16:41:55-04:00', staleAfterSeconds: 120, detail: Hue Bridge not reachable }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    accessClientSecret:
+      type: apiKey
+      in: header
+      name: CF-Access-Client-Secret
+      description: The secret half of the Cloudflare Access service token. See `accessClientId`.
+    accessClientId:
+      type: apiKey
+      in: header
+      name: CF-Access-Client-Id
+      description: |
+        Cloudflare Access service token. The client sends both `CF-Access-Client-Id` and
+        `CF-Access-Client-Secret`; Access checks them at the edge, and frame-bridge only sees
+        requests that passed. Normally the Cloudflare Worker adds these headers: the frame never
+        holds the token. On the LAN (port 8787) no token is needed.
+
+  parameters:
+    LightId:
+      name: id
+      in: path
+      required: true
+      description: A `Light.id`.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Invalid parameters or body.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: bad_request, detail: 'range exceeds 120 days' }
+    Unauthorized:
+      description: Missing or rejected Access service token (returned by Cloudflare Access).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized }
+    NotFound:
+      description: No such resource.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, detail: 'no light with that id' }
+    SourceUnavailable:
+      description: |
+        The source behind this feed is unavailable: EventKit access not granted, Reminders list
+        missing, or the Hue Bridge unreachable. The dashboard keeps showing what it had.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: source_unavailable, detail: Hue Bridge not reachable }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Machine-readable code, e.g. `bad_request`, `not_found`, `source_unavailable`.
+        detail:
+          type: string
+          description: Human-readable detail.
+
+    PersonId:
+      type: string
+      description: |
+        A person id from the dashboard's `DATA.people`. frame-bridge maps calendar names to person
+        ids in its config.
+      examples: [jordan]
+
+    Event:
+      type: object
+      description: One calendar event, or one occurrence of a recurring event.
+      required: [id, title, start, end, allDay, people]
+      properties:
+        id:
+          type: string
+          description: |
+            Unique per occurrence: the EventKit `eventIdentifier`, a colon, and the occurrence's
+            original start (`occurrenceDate`) in ISO 8601.
+        title:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: ISO 8601 with offset. For all-day events, local midnight of the first day.
+        end:
+          type: string
+          format: date-time
+          description: |
+            ISO 8601 with offset, exclusive. For all-day events, local midnight **after** the last
+            day (a one-day event ends at the next midnight). The calendar view computes day spans
+            from `end - start`, so don't send EventKit's 23:59:59 end.
+        allDay:
+          type: boolean
+        people:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/PersonId' }
+          description: |
+            Who the event is for. The dashboard treats an event as a family event when it lists
+            every person, so a "Family" calendar maps to all person ids.
+        loc:
+          type: string
+          description: Location text (EventKit `location`). Omitted when empty.
+        notes:
+          type: string
+          description: Event notes (EventKit `notes`). Omitted when empty.
+        travel:
+          type: integer
+          minimum: 1
+          description: |
+            Drive time in minutes, used for "Leave by". Optional: EventKit has no public travel-time
+            field, so v0.1 omits it. Reserved for a later source.
+
+    ShoppingList:
+      type: object
+      required: [stores, items]
+      properties:
+        stores:
+          type: array
+          description: Every store an item can refer to. Configured in frame-bridge.
+          items: { $ref: '#/components/schemas/Store' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShoppingItem' }
+
+    Store:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, examples: [grocer] }
+        name: { type: string, examples: [FreshCo] }
+
+    ShoppingItem:
+      type: object
+      required: [id, name, done, qty, cat, store]
+      properties:
+        id:
+          type: string
+          description: The reminder's `calendarItemIdentifier`.
+        name:
+          type: string
+          description: The reminder title, with any leading quantity removed ("3 avocados" → "avocados").
+        note:
+          type: string
+          description: Reminder notes. Omitted when empty.
+        done:
+          type: boolean
+          description: Completed. Completed items are only included for a few hours.
+        qty:
+          type: integer
+          minimum: 1
+          description: The leading number in the reminder title, else 1.
+        cat:
+          type: string
+          description: Category, from frame-bridge's keyword → category map. `Other` when nothing matches.
+          enum: [Produce, Bakery, Meat & Fish, Dairy & Eggs, Pantry, Frozen, Snacks, Household, Other]
+        store:
+          type: string
+          description: A `Store.id` from the same response.
+
+    LightsState:
+      type: object
+      required: [rooms, devices]
+      properties:
+        rooms:
+          type: array
+          items: { $ref: '#/components/schemas/Room' }
+        devices:
+          type: array
+          description: Lights only. Lights that aren't in a Hue room are left out.
+          items: { $ref: '#/components/schemas/Light' }
+
+    Room:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          description: Hue `room` resource id.
+        name:
+          type: string
+
+    Light:
+      type: object
+      required: [id, room, type, name, on, level]
+      properties:
+        id:
+          type: string
+          description: Hue `light` resource id.
+        room:
+          type: string
+          description: A `Room.id`.
+        type:
+          type: string
+          const: light
+          description: Always `light`. The dashboard shares this list with other device types.
+        name:
+          type: string
+        on:
+          type: boolean
+        level:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: |
+            Brightness in percent (Hue `dimming.brightness`, rounded, at least 1). Kept when the
+            light is off, so turning it on restores it. Lights without dimming report 100.
+
+    LightPatch:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        on: { type: boolean }
+        level: { type: integer, minimum: 1, maximum: 100 }
+
+    ServerEvent:
+      description: |
+        One SSE message: `event` is the SSE `event:` line, `data` is the JSON on the `data:` line.
+      oneOf:
+        - type: object
+          required: [event, data]
+          properties:
+            event: { type: string, enum: [calendar, shopping] }
+            data: { $ref: '#/components/schemas/ChangeNotice' }
+        - type: object
+          required: [event, data]
+          properties:
+            event: { type: string, const: light }
+            data: { $ref: '#/components/schemas/Light' }
+
+    ChangeNotice:
+      type: object
+      required: [changedAt]
+      description: '`data` of `calendar` and `shopping` events: something changed, re-fetch.'
+      properties:
+        changedAt:
+          type: string
+          format: date-time
+
+    FeedHealth:
+      type: object
+      required: [status, staleAfterSeconds]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last successful read from the source. Omitted if there hasn't been one.
+        staleAfterSeconds:
+          type: integer
+          description: How old `updatedAt` may get before the dashboard shows the feed as stale.
+        authorization:
+          type: string
+          description: EventKit authorization status (calendar and shopping only).
+          enum: [fullAccess, writeOnly, denied, restricted, notDetermined]
+        detail:
+          type: string
+          description: What's wrong, when `status` is `error`.
+
+    Health:
+      type: object
+      required: [status, version, feeds]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          description: '`degraded` when any feed has `status: error`.'
+        version:
+          type: string
+          description: frame-bridge's implemented contract version (`info.version`).
+        feeds:
+          type: object
+          required: [calendar, shopping, lights]
+          properties:
+            calendar: { $ref: '#/components/schemas/FeedHealth' }
+            shopping: { $ref: '#/components/schemas/FeedHealth' }
+            lights: { $ref: '#/components/schemas/FeedHealth' }
