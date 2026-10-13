@@ -36,8 +36,8 @@
   touch-action: pan-y; cursor: pointer;
 }
 .tile:active { transform: scale(.97); }
-.tile-fill { position: absolute; left: 0; top: 0; bottom: 0; width: var(--lvl); background: var(--warm); }
-.tile.is-drag { transform: scale(1.02); box-shadow: 0 10px 30px rgba(0, 0, 0, .15); }
+.tile-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transform: translateX(calc(var(--lvl) - 100%)); background: var(--warm); }
+.tile.is-drag { transform: scale(1.02); }
 .tile-icon, .tile-name, .tile-state { position: relative; z-index: 1; }
 .tile-icon { color: var(--mute); }
 .tile.is-on .tile-icon { color: var(--ink); }
@@ -94,7 +94,7 @@
 .slide-confirm { position: relative; height: 88px; border-radius: 999px; background: var(--paper-2); overflow: hidden; touch-action: none; }
 .sc-label { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; font-size: 20px; font-weight: 800; font-stretch: 80%; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); padding-left: 60px; }
 .sc-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 88px; border-radius: 999px; background: var(--amber); }
-.sc-knob { position: absolute; left: 6px; top: 6px; width: 76px; height: 76px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0, 0, 0, .25); }
+.sc-knob { position: absolute; left: 6px; top: 6px; width: 76px; height: 76px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; }
 
 /* camera sheet */
 .sheet--cam { width: 1000px; background: #000; }

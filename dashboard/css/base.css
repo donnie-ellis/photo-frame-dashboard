@@ -169,7 +169,6 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   display: flex; align-items: center; gap: 14px;
   background: var(--ink); color: #fff; border-radius: 20px;
   font-size: 20px; position: relative; overflow: hidden;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, .25);
   transform: translateY(140%);
 }
 .toast.is-in { transform: none; }
@@ -194,7 +193,7 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   width: 620px; max-height: 720px; overflow: auto;
   background: var(--paper); border-radius: 28px;
   transform: translate(-50%, -44%) scale(.97); opacity: 0;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
+  border: 2px solid var(--line);
 }
 .sheet-layer.is-open .sheet { transform: translate(-50%, -50%); opacity: 1; }
 .sheet--wide { width: 900px; }
@@ -215,7 +214,6 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   display: flex; align-items: center; gap: 16px;
   min-height: 84px; padding: 10px 12px 10px 24px;
   border-radius: 20px; background: var(--amber); color: var(--ink);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .22);
   transform: translateY(-130%); opacity: 0;
 }
 .banner.is-in { transform: none; opacity: 1; }
@@ -295,9 +293,10 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .demo-note { font-size: 16px; color: rgba(255, 255, 255, .6); }
 
 /* ---------------------------------------------------------------- night dashboard (tap on night clock) */
-.stage[data-mode="nightdash"] > .rail,
-.stage[data-mode="nightdash"] > .views {
-  filter: invert(1) hue-rotate(180deg) grayscale(1) sepia(1) saturate(5) hue-rotate(-38deg) brightness(.62);
+.stage[data-mode="nightdash"] {
+  --paper: #0A0604; --paper-2: #1A0F08; --card: #120B06;
+  --ink: #B8601C; --ink-rgb: 184 96 28; --ink-2: #94501A;
+  --mute: #6B4220; --line: #2E1B0E;
 }
 .stage[data-mode="nightdash"] { background: #000; }
 

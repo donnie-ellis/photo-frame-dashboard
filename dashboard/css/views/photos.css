@@ -15,7 +15,7 @@
 .polaroid {
   position: absolute; left: 50%; top: 50%; margin: 0;
   background: #FBF9F4; padding: 18px 18px 0; border-radius: 4px;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+  border: 2px solid rgba(0, 0, 0, .35);
   translate: -50% -52%;
 }
 .polaroid-img { width: 660px; height: 470px; overflow: hidden; background: #ddd; }
