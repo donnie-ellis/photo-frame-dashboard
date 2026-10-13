@@ -17,8 +17,8 @@ family dashboard on an Android photo frame, fed by real data from small intermed
 - `scripts/`: inherited device tooling (backup, root, Wi-Fi). Reference only.
 
 **Integration services are built in their own repos. This repo owns their API contracts.** The
-first is `frame-bridge` (Swift on the Mac mini: Calendar, Reminders, Hue), described in
-`docs/apple-integration.md`.
+first is `frame-bridge` (Swift on the Mac mini: Calendar, Reminders, Hue, Photos, weather),
+described in `docs/apple-integration.md`.
 
 ## Upstream
 

@@ -1,15 +1,21 @@
-# Apple + Hue integration plan
+# frame-bridge integration plan (Apple, Hue, weather)
 
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
-v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13.
+v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13.
 
-Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
+Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
 | Feed | Source | Access | Replaces |
 | --- | --- | --- | --- |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
 | Shopping list | Apple Reminders, "Shopping" list | Read (check-off later, optional) | `DATA.groceries`, `DATA.stores` |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
+| Weather | Open-Meteo | Read only | `DATA.weather` |
+| Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
+
+People's status (`status`, `eta`, `home`) has no real source and is being removed from the UI (see
+[People's status](#peoples-status)). The other mocks (chores, climate, media, cameras, agents) are
+out of scope here.
 
 ## Decisions
 
@@ -25,6 +31,12 @@ Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
   Hue taps local. Cost: no access from outside the house (add Tailscale if that's ever wanted), and
   if the Mac mini is down the frame shows an error page instead of stale data.
 - **One token per frame.** See [Auth](#auth-per-frame-tokens).
+- **Weather from Open-Meteo, fetched by frame-bridge**, not the dashboard: the home coordinates stay
+  on the Mac, all frames share one cached forecast, and the last forecast survives an internet
+  outage. Free, no API key.
+- **Photos through PhotoKit, like the Apple TV screensaver:** one album named "Frame" (a shared
+  album, so anyone in the family can add from their phone) plus "On this day" from the whole
+  library. The Mac resizes images for the frame.
 
 ### Rejected options and why
 
@@ -39,6 +51,11 @@ Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
   Fallback only.
 - **HomeKit framework / Home Assistant HomeKit Controller:** unnecessary for Hue, and HomeKit
   Controller pairing would pull accessories out of Apple Home.
+- **WeatherKit:** needs the paid Apple Developer Program. Open-Meteo has what the views read.
+- **Weather from the dashboard directly:** would put the home location in the frontend and make
+  every frame fetch it.
+- **Memories / Featured Photos:** not exposed to third-party apps by PhotoKit (as far as we know).
+  "On this day" is rebuilt from photo dates instead.
 
 ## Architecture
 
@@ -49,7 +66,9 @@ Mac mini: frame-bridge (Swift, LaunchAgent, <mac-ip>:8787)
    ├─ /         ── built dashboard (dashboard/dist/)
    ├─ EventKit ── Calendar (read only)
    ├─ EventKit ── Reminders "Shopping"
-   └─ HTTPS ───── Hue Bridge CLIP v2 (LAN)
+   ├─ PhotoKit ── Photos: "Frame" album + "On this day"
+   ├─ HTTPS ───── Hue Bridge CLIP v2 (LAN)
+   └─ HTTPS ───── Open-Meteo (internet)
 ```
 
 Give the Mac mini a DHCP reservation and use its IP in the frame URL: Android 6 can't be relied on
@@ -75,7 +94,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.2.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.3.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -84,8 +103,11 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
 | `GET /api/lights` | Hue rooms + lights |
 | `PUT /api/lights/{id}` | `{ on?, level? }` |
-| `GET /api/events` | SSE: `calendar`, `shopping` (re-fetch notices), `light` (full object) |
-| `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, EventKit authorization |
+| `GET /api/weather` | Today's high/low and 48 hourly temperature, condition and rain-chance values |
+| `GET /api/photos` | The "Frame" album (sampled) plus "On this day" photos |
+| `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos` (re-fetch notices), `light` (full object) |
+| `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
 
@@ -105,6 +127,15 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 | `ShoppingItem.cat` / `store` | keyword → category/store map in frame-bridge config |
 | `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` resource ids |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
+| `Weather.hi` / `lo` | Open-Meteo `daily.temperature_2m_max` / `_min`, today |
+| `Weather.t` / `p` | `hourly.temperature_2m` (rounded) / `hourly.precipitation_probability` |
+| `Weather.c` | `hourly.weather_code` + `hourly.is_day` → condition name (table in the spec) |
+| `Photo.id` | `PHAsset.localIdentifier` |
+| `Photo.o` | `pixelWidth` vs `pixelHeight` |
+| `Photo.date` | `creationDate`, as a local date |
+| `Photo.place` | `location`, reverse-geocoded (`CLGeocoder`) to a short name, cached per asset |
+| `Photo.tag` | same day + within a few km, computed by frame-bridge |
+| `Photo.fav` | `isFavorite` |
 
 ### Contract decisions
 
@@ -121,6 +152,20 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - **Auth (v0.2.0):** a per-frame `frame_token` cookie, checked by frame-bridge itself. See
   [Auth](#auth-per-frame-tokens).
 - **Read only for calendar and shopping.** Writes are separate, later changes.
+- **Weather (v0.3.0) keeps the dashboard's shape** (`hi`, `lo`, and the parallel arrays `t`, `c`,
+  `p`), but has 48 hours instead of 24 and a `start` time. The mock's 24 entries wrap around
+  midnight, which shows today's early hours as "next" late at night. `feels`, `humidity` and `wind`
+  are in the mock but no view reads them, so they aren't in the contract.
+- **Weather adds `snow` and `storm` conditions.** The mock only has five icons. The dashboard needs
+  icons and labels for them when the feed is wired.
+- **Photos have `id` instead of `seed`.** The image URL is `/api/photos/{id}/image`, and the
+  dashboard builds it (`App.photoSrc`). Two sizes only, so images cache well.
+- **No `from` on photos.** PhotoKit doesn't seem to say who added a photo to a shared album. The
+  slideshow caption has to work without it.
+- **`fav` is read only.** Hide the favorite button until a write is added (it changes the Photos
+  library, so it's a separate decision).
+- **The album is sampled** (300 photos, re-shuffled daily, plus up to 30 "On this day"), so a big
+  album doesn't make a big payload.
 
 ## Implementation notes
 
@@ -151,6 +196,32 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - Live updates: `GET /eventstream/clip/v2` (SSE). Relay into `/api/events`.
 - Give the bridge a DHCP reservation.
 
+### Photos (PhotoKit)
+
+- Add `NSPhotoLibraryUsageDescription` to Info.plist and request `.readWrite` authorization
+  (PhotoKit has no read-only level; frame-bridge still never writes). Approve once in System Settings → Privacy & Security → Photos.
+- The album: `PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any)` filtered by
+  title from config. Shared albums are `subtype: .albumCloudShared`.
+- "On this day": fetch images whose `creationDate` is today's month/day in earlier years. PhotoKit
+  predicates can't match month/day directly, so query one day-range per year (cheap), or keep an
+  index built at startup.
+- Skip videos (`mediaType == .image`) and screenshots (`mediaSubtypes` contains
+  `.photoScreenshot`).
+- Images: `PHImageManager.requestImage` with a target size, `deliveryMode: .highQualityFormat`
+  and `isNetworkAccessAllowed = true` (photos in iCloud with "Optimize Mac Storage" need a
+  download). Encode JPEG, cache on disk by id + size.
+- Changes: `PHPhotoLibraryChangeObserver` → `photos` SSE notice (debounced).
+- **Spike first:** check that shared album photos come back at full quality through PhotoKit on
+  the Mac mini. If not, use a regular album that the family adds to through iCloud Photos.
+
+### Weather (Open-Meteo)
+
+- `https://api.open-meteo.com/v1/forecast?latitude=…&longitude=…&hourly=temperature_2m,precipitation_probability,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2`
+  (add `&temperature_unit=fahrenheit` if configured).
+- Refresh about every 30 minutes; send a `weather` SSE notice when it changes. Serve the last good
+  copy when a fetch fails.
+- Free for non-commercial use, no key. Keep requests low anyway.
+
 ### Serving the dashboard
 
 - frame-bridge serves a directory of static files at `/` (the copied `dashboard/dist/`) and the API
@@ -169,6 +240,18 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   and rollback on error.
 - Remove or hide non-light device tiles (blinds, locks, garage, cameras, climate) until those
   have real sources.
+- Weather: index the 48-hour arrays without wrapping (`App.hourly`), and add `snow`/`storm` icons
+  and labels.
+- Photos: build image URLs from `id` (`App.photoSrc`), handle missing `from` and `place` in
+  captions, and hide the favorite button.
+
+### People's status
+
+There's no usable source: Find My has no API, HomeKit presence isn't readable from a Mac service,
+and ETA would need live location. The status text, ETA and the away styling are removed from the
+UI; people stay as names, colours and avatars. If home/away is missed later, the best option is
+iOS Shortcuts "Arrive/Leave home" automations on each adult's phone calling frame-bridge with a
+per-phone token.
 - Target WebView 106: no syntax newer than what `vite.config.js` already targets.
 
 ## Phases
@@ -179,7 +262,10 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 3. **Calendar:** EventKit read, calendar→person map, wire `calendar.js`, hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
    wire `shopping.js`.
-5. **Hardening:** stale-data indicator, logs, restart on crash
+5. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
+6. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
+   slideshow.
+7. **Hardening:** stale-data indicator, logs, restart on crash
    (`KeepAlive` in the plist), document setup in this file.
 
 ## Open questions
@@ -190,6 +276,8 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   the list of stores is still open.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Check items off from the frame? (Needs Reminders write access; easy with EventKit.)
+- Weather units: °C or °F (frame-bridge config).
+- Shared or regular "Frame" album: depends on the PhotoKit spike.
 
 ## Breaking changes
 
@@ -200,5 +288,5 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 
 ## Secrets (never commit)
 
-Hue application key, pinned Hue cert, frame tokens. Keychain (or a config file outside the repo) on
+Hue application key, pinned Hue cert, frame tokens, the home coordinates for weather. Keychain (or a config file outside the repo) on
 the Mac; each frame's token lives only on that frame.
