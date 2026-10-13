@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude --agent *)",
+      "Bash(echo *)",
+      "Bash(gh issue *)",
+      "Bash(gh label *)",
+      "Bash(gh pr *)",
+      "Bash(git add *)",
+      "Bash(git checkout *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git fetch *)",
+      "Bash(git log *)",
+      "Bash(git pull *)",
+      "Bash(git push *)",
+      "Bash(git restore *)",
+      "Bash(git rev-parse *)",
+      "Bash(git stash *)",
+      "Bash(jq *)",
+      "Bash(npm install *)",
+      "Bash(npm run build)",
+      "Bash(npm run check)",
+      "Bash(npm run gen:api)",
+      "Bash(npm run dev)",
+      "Bash(npm run preview)",
+      "Bash(npx @redocly/cli *)",
+      "Bash(npx @stoplight/prism-cli *)",
+      "Bash(curl -s *localhost:4010*)",
+      "Edit(./**)",
+      "Read(./**)"
+    ],
+    "deny": [
+      "Bash(npm run deploy*)",
+      "Bash(*wrangler deploy*)",
+      "Bash(*wrangler rollback*)",
+      "Bash(gh pr merge *)",
+      "Bash(* wesbos/photo-frame-dashboard*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push origin main*)"
+    ]
+  },
+  "env": {
+    "AI_TASK_LABEL": "ai-task",
+    "AI_IN_PROGRESS_LABEL": "ai-in-progress",
+    "AI_DONE_LABEL": "ai-done",
+    "AI_FAILED_LABEL": "ai-failed",
+    "MAX_RETRIES": "3"
+  }
+}
