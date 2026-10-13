@@ -1,13 +1,13 @@
 # Apple + Hue integration plan
 
-Status: plan, not started. Written 2026-10-11.
+Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12.
 
 Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
 
 | Feed | Source | Access | Replaces |
 | --- | --- | --- | --- |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
-| Shopping list | Apple Reminders, "Shopping" list | Read (check-off later, optional) | `DATA.groceries` |
+| Shopping list | Apple Reminders, "Shopping" list | Read (check-off later, optional) | `DATA.groceries`, `DATA.stores` |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
 
 ## Decisions
@@ -50,54 +50,52 @@ Decide in phase 5.
 
 ## API contract (frame-bridge)
 
-Shapes match the existing mock objects so the views need minimal changes.
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.1.0). It is the
+source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
-### `GET /api/calendar?from=ISO&to=ISO`
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/calendar?from&to` | Events overlapping a range (max 120 days), recurring events expanded |
+| `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
+| `GET /api/lights` | Hue rooms + lights |
+| `PUT /api/lights/{id}` | `{ on?, level? }` |
+| `GET /api/events` | SSE: `calendar`, `shopping` (re-fetch notices), `light` (full object) |
+| `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, EventKit authorization |
 
-```json
-[{ "id": "eventIdentifier:occurrenceDate", "title": "Dentist", "start": "2026-10-12T14:00:00-04:00",
-   "end": "2026-10-12T15:00:00-04:00", "allDay": false, "people": ["donnie"], "calendar": "Family",
-   "location": "..." }]
-```
+### Field mapping (source → dashboard)
 
-- `people` comes from a config map of calendar name → person id (matches `DATA.people`).
-- Recurring events are expanded by EventKit (`predicateForEvents`), so each occurrence needs a
-  unique id: event identifier + occurrence start.
-- Calendar view's "Add to calendar" sheet must be disabled or hidden: calendar is read only.
+Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 
-### `GET /api/shopping`
+| Dashboard | Source |
+| --- | --- |
+| `Event.id` | `EKEvent.eventIdentifier` + `:` + `occurrenceDate` (ISO 8601) |
+| `Event.loc` | `EKEvent.location` |
+| `Event.notes` | `EKEvent.notes` |
+| `Event.people` | calendar name → person ids, from config. A "Family" calendar maps to every person |
+| `Event.end` (all-day) | midnight after the last day, **not** EventKit's 23:59:59 |
+| `ShoppingItem.id` | `EKReminder.calendarItemIdentifier` |
+| `ShoppingItem.name` / `qty` | reminder title, with a leading number split off into `qty` (default 1) |
+| `ShoppingItem.note` | `EKReminder.notes` |
+| `ShoppingItem.done` | `isCompleted`, completed items kept for a few hours |
+| `ShoppingItem.cat` / `store` | keyword → category/store map in frame-bridge config |
+| `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` resource ids |
+| `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
 
-```json
-[{ "id": "calendarItemIdentifier", "name": "Bananas", "note": "Bunch, not too ripe",
-   "done": false, "qty": 1, "cat": "Produce", "store": "grocer" }]
-```
+### Contract decisions (v0.1.0)
 
-- `name` = reminder title, `note` = reminder notes, `done` = isCompleted (include items completed in
-  the last few hours so they can show struck through).
-- `cat` / `store`: Reminders has no fields for these. Options, decide in phase 4:
-  sections in the Reminders list (not exposed by EventKit), a prefix/tag convention in the
-  title or notes (e.g. `#costco`), or a server-side keyword → category map. Default to the map.
-- `qty`: parse a leading number from the title ("3 avocados"), else 1.
-
-### `GET /api/lights`
-
-```json
-{ "rooms": [{ "id": "<hue room id>", "name": "Kitchen" }],
-  "devices": [{ "id": "<hue light id>", "room": "<hue room id>", "type": "light",
-                "name": "Pendants", "on": true, "level": 80 }] }
-```
-
-### `PUT /api/lights/{id}` body `{ "on": true, "level": 60 }`
-### `PUT /api/rooms/{id}` body `{ "on": false }` (uses the room's `grouped_light`)
-
-### `GET /api/events` (SSE)
-
-Pushes `calendar`, `shopping`, and `light` change events so the frame updates without polling.
-
-### `GET /healthz`
-
-Reports EventKit authorization status for both entity types, Hue reachability, and last-update
-timestamps. The dashboard shows a stale-data indicator when a feed is older than its threshold.
+- **`location` → `loc`.** The earlier draft of this doc used `location`. The views read `e.loc`.
+- **No `calendar` field on events.** No view reads it. The calendar → person mapping happens in
+  frame-bridge.
+- **`travel` is optional and not sent in v0.1.** The views use it for "Leave by", but EventKit has no
+  public travel-time field. Events without it simply show no leave-by time.
+- **`/api/shopping` returns `{ stores, items }`, not a bare array.** `views/shopping.js` crashes on a
+  `store` id missing from `DATA.stores`, so the stores come from the same config as the item mapping.
+- **`cat` is an enum** of the dashboard's categories plus `Other`, matching `catOrder` in `data.js`.
+- **No `PUT /api/rooms/{id}` yet.** No dashboard control toggles a whole room. Add it with
+  scenes (a scene now sends one `PUT` per light, which Hue rate-limits at about 10/s).
+- **Auth:** both `CF-Access-Client-Id` and `CF-Access-Client-Secret`, checked by Cloudflare Access at
+  the edge. frame-bridge itself does no auth, so it must only listen on localhost/LAN.
+- **Read only for calendar and shopping.** Writes are separate, later changes.
 
 ## Implementation notes
 
@@ -159,8 +157,11 @@ timestamps. The dashboard shows a stale-data indicator when a feed is older than
 
 ## Open questions
 
-- Which calendars to show, and the calendar → person mapping.
-- Category/store strategy for shopping items.
+- Which calendars to show, and the calendar → person mapping. The spec examples use the mock person
+  ids (`maya`, `jordan`, ...). Real ids replace the mock family in `data.js`.
+- Category/store strategy for shopping items. The contract assumes the server-side keyword map;
+  the list of stores is still open.
+- A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Check items off from the frame? (Needs Reminders write access; easy with EventKit.)
 - Keep the Cloudflare Worker, or serve locally from the Mac mini?
 
