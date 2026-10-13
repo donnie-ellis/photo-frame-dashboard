@@ -10,15 +10,15 @@ Uses Prism through `npx` (no repo dependency). It serves the `example`s from
 
 ## Start it
 
-Prism enforces the spec's security: requests without both `CF-Access-Client-*` headers get
-401. Any value works.
+Prism enforces the spec's security: requests without a `frame_token` cookie get 401. Any value
+works.
 
 Needs Node 20.19+ or 22.12+. On Node 20.5 Prism crashes with `ERR_REQUIRE_ESM`. See the
 `run-dashboard` skill, step 1.
 
 ```sh
 npx @stoplight/prism-cli mock docs/api/<service>.openapi.yaml -p 4010   # run in the background
-curl -s -H 'CF-Access-Client-Id: dev' -H 'CF-Access-Client-Secret: dev' localhost:4010/api/lights | jq .
+curl -s -b 'frame_token=dev' localhost:4010/api/lights | jq .
 ```
 
 - `--dynamic` (`-d`) generates random data from the schemas instead of the examples. Use it to
@@ -33,11 +33,11 @@ The dashboard calls relative `/api/...` paths. In dev, Vite proxies them. The pr
 config works for the mock and the real service:
 
 ```js
-// Dev only. Prism enforces the spec's Access headers (401 without them), so send dummy ones, the
-// same way the Worker adds the real ones in production. The real bridge on the LAN ignores them.
+// Dev only. The spec requires the frame_token cookie (the kiosk app sets it on the frame), so the
+// proxy adds one. Any value works for the mock; for the real bridge, use a token issued for dev.
 var apiProxy = {
   target: process.env.API_TARGET || 'http://localhost:4010',
-  headers: { 'CF-Access-Client-Id': 'dev', 'CF-Access-Client-Secret': 'dev' },
+  headers: { Cookie: 'frame_token=' + (process.env.FRAME_TOKEN || 'dev') },
 };
 server: {
   host: true,
@@ -50,7 +50,7 @@ targets. Don't touch `build.target` or `cssTarget`. Then:
 
 ```sh
 cd dashboard && npm run dev                                   # uses the mock on :4010
-API_TARGET=http://<mac-mini>:8787 npm run dev                 # uses the real frame-bridge
+API_TARGET=http://<mac-ip>:8787 FRAME_TOKEN=<dev-token> npm run dev   # uses the real frame-bridge
 ```
 
 ## Limits

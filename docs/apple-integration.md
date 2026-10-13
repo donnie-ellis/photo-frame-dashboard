@@ -1,6 +1,7 @@
 # Apple + Hue integration plan
 
-Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12.
+Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
+v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13.
 
 Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
 
@@ -18,6 +19,12 @@ Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
   Home, so nothing here touches the Home app setup. Homebridge is not involved.
 - **One Swift service** ("frame-bridge") does all three feeds. EventKit requires Swift/ObjC, and one
   process means one privacy grant and one thing to deploy. Hue is plain HTTPS from the same process.
+- **Served on the LAN, no Cloudflare.** frame-bridge serves the built dashboard and the API from one
+  origin. The frames and the Mac mini share a network, so a Worker, Tunnel and Access add setup and
+  secrets for nothing. It also keeps working when the internet is down (except weather) and keeps
+  Hue taps local. Cost: no access from outside the house (add Tailscale if that's ever wanted), and
+  if the Mac mini is down the frame shows an error page instead of stale data.
+- **One token per frame.** See [Auth](#auth-per-frame-tokens).
 
 ### Rejected options and why
 
@@ -25,6 +32,8 @@ Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
   Keep it as the fallback if the Mac ever goes away.
 - **Reminders over CalDAV:** lists upgraded to the iOS 13+ Reminders format moved to CloudKit and
   are no longer served over CalDAV.
+- **Cloudflare Worker + Tunnel + Access** (the v0.1.0 design): only needed to reach the house from
+  outside, which the frames don't need.
 - **Reminders via a Shortcuts push** ("Find Reminders" → POST on "When Reminders is closed"):
   works without a Mac, but is not real-time for other people's edits and is display-only.
   Fallback only.
@@ -34,23 +43,39 @@ Goal: replace three mock feeds in `dashboard/js/data.js` with real data:
 ## Architecture
 
 ```
-Frame (WebView 106 kiosk)
-   │  HTTPS
-Cloudflare Worker (home-dashboard)  ── serves dashboard, proxies /api/*, caches
-   │  Cloudflare Tunnel + Access service token
-Mac mini: frame-bridge (Swift, LaunchAgent, localhost:8787)
+Frames (WebView 106 kiosk, one token each)
+   │  HTTP on the LAN, cookie frame_token
+Mac mini: frame-bridge (Swift, LaunchAgent, <mac-ip>:8787)
+   ├─ /         ── built dashboard (dashboard/dist/)
    ├─ EventKit ── Calendar (read only)
    ├─ EventKit ── Reminders "Shopping"
    └─ HTTPS ───── Hue Bridge CLIP v2 (LAN)
 ```
 
-Alternative to the Worker hop: serve the built dashboard from frame-bridge on the LAN and point
-`DEFAULT_URL` in the kiosk app at it. Simpler, no tunnel, but loses the Cloudflare deploy flow.
-Decide in phase 5.
+Give the Mac mini a DHCP reservation and use its IP in the frame URL: Android 6 can't be relied on
+to resolve `.local` names.
+
+### Auth: per-frame tokens
+
+The goal is keeping casual guests on the Wi-Fi from finding the server and flipping lights, not
+stopping a determined attacker.
+
+- frame-bridge keeps a named list of frames with a **hash** of each token (e.g. `kitchen`,
+  `hallway`). A token can be revoked on its own, and logs say which frame made each request.
+- Every request, including the static dashboard files, needs the `frame_token` cookie; otherwise
+  `401`. Compare hashes in constant time.
+- The **kiosk app** stores the URL and token on the frame (set once over adb, see
+  `dashboard/kiosk/MainActivity.java`) and sets the cookie for the bridge's origin before loading
+  the page. A cookie rather than a header, because `EventSource` can't send headers. Dashboard code
+  never sees the token.
+- Plain HTTP: anyone with the Wi-Fi password could sniff a token. Acceptable for the goal above. If
+  that changes, add HTTPS with a self-signed cert pinned in the kiosk app. A guest Wi-Fi network,
+  if the router has one, keeps guests off this network entirely.
+- Generate tokens with e.g. `openssl rand -hex 32` (hex is safe in a cookie value). Never commit them.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.1.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.2.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -81,7 +106,7 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 | `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` resource ids |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
 
-### Contract decisions (v0.1.0)
+### Contract decisions
 
 - **`location` → `loc`.** The earlier draft of this doc used `location`. The views read `e.loc`.
 - **No `calendar` field on events.** No view reads it. The calendar → person mapping happens in
@@ -93,8 +118,8 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - **`cat` is an enum** of the dashboard's categories plus `Other`, matching `catOrder` in `data.js`.
 - **No `PUT /api/rooms/{id}` yet.** No dashboard control toggles a whole room. Add it with
   scenes (a scene now sends one `PUT` per light, which Hue rate-limits at about 10/s).
-- **Auth:** both `CF-Access-Client-Id` and `CF-Access-Client-Secret`, checked by Cloudflare Access at
-  the edge. frame-bridge itself does no auth, so it must only listen on localhost/LAN.
+- **Auth (v0.2.0):** a per-frame `frame_token` cookie, checked by frame-bridge itself. See
+  [Auth](#auth-per-frame-tokens).
 - **Read only for calendar and shopping.** Writes are separate, later changes.
 
 ## Implementation notes
@@ -126,13 +151,14 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - Live updates: `GET /eventstream/clip/v2` (SSE). Relay into `/api/events`.
 - Give the bridge a DHCP reservation.
 
-### Worker side
+### Serving the dashboard
 
-- Proxy `/api/*` to the tunnel hostname, adding the Access service token headers
-  (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) from Worker secrets.
-- Cache: calendar 5 min, shopping 30 s, lights not cached.
-- SSE through the Worker works but keep an eye on connection limits; the frame can fall back to
-  polling every 30 s.
+- frame-bridge serves a directory of static files at `/` (the copied `dashboard/dist/`) and the API
+  under `/api`. Unknown paths under `/api` are `404`, not the dashboard.
+- `index.html` must not be cached (`Cache-Control: no-cache`), so a new deploy is picked up on
+  reload. The hashed files under `/assets` can be cached for a long time.
+- Deploy is copying `dist/` to the Mac mini (e.g. `rsync -a --delete`). Keep the previous copy
+  for rollback.
 
 ### Dashboard side
 
@@ -147,12 +173,13 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 
 ## Phases
 
-1. **Skeleton:** frame-bridge app bundle, LaunchAgent plist, `/healthz`, Cloudflare Tunnel + Access.
+1. **Skeleton:** frame-bridge app bundle, LaunchAgent plist, `/healthz`, token check, static
+   dashboard files. Point the kiosk app at it.
 2. **Lights:** Hue key setup, `/api/lights`, toggles, SSE relay, wire `control.js`.
 3. **Calendar:** EventKit read, calendar→person map, wire `calendar.js`, hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
    wire `shopping.js`.
-5. **Hardening:** stale-data indicator, Worker vs local hosting decision, logs, restart on crash
+5. **Hardening:** stale-data indicator, logs, restart on crash
    (`KeepAlive` in the plist), document setup in this file.
 
 ## Open questions
@@ -163,9 +190,15 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   the list of stores is still open.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Check items off from the frame? (Needs Reminders write access; easy with EventKit.)
-- Keep the Cloudflare Worker, or serve locally from the Mac mini?
+
+## Breaking changes
+
+- **v0.2.0:** the Cloudflare Access headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) are
+  replaced by the `frame_token` cookie, and the tunnel server is gone. frame-bridge must check the
+  token itself and serve the dashboard. (A minor bump because the version is still 0.x and nothing
+  implements v0.1.0 yet.)
 
 ## Secrets (never commit)
 
-Hue application key, pinned Hue cert, Access service token. Keychain on the Mac, Worker secrets in
-Cloudflare.
+Hue application key, pinned Hue cert, frame tokens. Keychain (or a config file outside the repo) on
+the Mac; each frame's token lives only on that frame.

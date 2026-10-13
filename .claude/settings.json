@@ -36,6 +36,7 @@
       "Bash(npm run deploy*)",
       "Bash(*wrangler deploy*)",
       "Bash(*wrangler rollback*)",
+      "Bash(rsync *)",
       "Bash(gh pr merge *)",
       "Bash(* wesbos/photo-frame-dashboard*)",
       "Bash(git push --force*)",

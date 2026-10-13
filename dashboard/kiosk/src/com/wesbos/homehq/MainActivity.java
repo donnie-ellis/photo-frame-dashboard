@@ -2,6 +2,8 @@ package com.wesbos.homehq;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,6 +11,7 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -21,10 +24,15 @@ import android.webkit.WebViewClient;
  *   gets root, so the devtools socket should only exist while actively debugging):
  *     adb shell am start -n com.wesbos.homehq/.MainActivity --ez debug true
  * - Launch with a URL: adb shell am start -a android.intent.action.VIEW -d <url> -n com.wesbos.homehq/.MainActivity
+ * - Set up a frame once (saved, used on every launch). The token is this frame's frame-bridge token,
+ *   sent as the frame_token cookie to the saved URL's host only:
+ *     adb shell am start -n com.wesbos.homehq/.MainActivity --es url http://<mac-ip>:8787/ --es token <token>
+ *   Changing the url without a token clears the saved token, so it never follows a new host.
  */
 public class MainActivity extends Activity {
   static final String TAG = "HomeHQ";
   static final String DEFAULT_URL = "https://home-dashboard.wesbos.workers.dev/";
+  static final String TOKEN_COOKIE = "frame_token";
   static final long EXIT_HOLD_MS = 1500;
   static final float EXIT_SLOP_PX = 60;
 
@@ -64,8 +72,10 @@ public class MainActivity extends Activity {
     web.setWebViewClient(new WebViewClient()); // keep navigation inside the kiosk
     setContentView(web);
 
+    saveConfig(getIntent());
+    setTokenCookie();
     String url = getIntent().getDataString();
-    web.loadUrl(url != null ? url : DEFAULT_URL);
+    web.loadUrl(url != null ? url : prefs().getString("url", DEFAULT_URL));
   }
 
   @Override
@@ -73,7 +83,44 @@ public class MainActivity extends Activity {
     super.onNewIntent(intent);
     applyDebugFlag(intent);
     String url = intent.getDataString();
+    if (saveConfig(intent)) {
+      setTokenCookie();
+      if (url == null) url = prefs().getString("url", DEFAULT_URL);
+    }
     if (url != null) web.loadUrl(url);
+  }
+
+  private SharedPreferences prefs() {
+    return getSharedPreferences("kiosk", MODE_PRIVATE);
+  }
+
+  /** Saves the url/token extras, if any. Returns true when something changed. */
+  private boolean saveConfig(Intent intent) {
+    if (intent == null) return false;
+    String url = intent.getStringExtra("url");
+    String token = intent.getStringExtra("token");
+    if (url == null && token == null) return false;
+    SharedPreferences.Editor ed = prefs().edit();
+    if (url != null) ed.putString("url", url);
+    if (token != null) ed.putString("token", token);
+    else ed.remove("token"); // new url, no token: don't send the old token to it
+    ed.apply();
+    Log.i(TAG, "Saved config: url " + (url != null ? url : "unchanged") + ", token " + (token != null ? "set" : "cleared"));
+    return true;
+  }
+
+  /** Sets the frame_token cookie for the saved URL's origin, or removes it when there's no token. */
+  private void setTokenCookie() {
+    String url = prefs().getString("url", null);
+    if (url == null) return;
+    String token = prefs().getString("token", null);
+    Uri u = Uri.parse(url);
+    String origin = u.getScheme() + "://" + u.getAuthority();
+    CookieManager cm = CookieManager.getInstance();
+    cm.setCookie(origin, token != null
+        ? TOKEN_COOKIE + "=" + token + "; Path=/; HttpOnly"
+        : TOKEN_COOKIE + "=; Path=/; Max-Age=0");
+    cm.flush();
   }
 
   /** Remote debugging only when explicitly requested; any normal launch turns it back off. */

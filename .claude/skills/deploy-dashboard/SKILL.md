@@ -1,29 +1,29 @@
 ---
 name: deploy-dashboard
-description: Build and deploy the dashboard to Cloudflare Workers with wrangler. Only when the user explicitly invokes it.
+description: Build the dashboard and copy it to the Mac mini, where frame-bridge serves it to the frames on the LAN. Only when the user explicitly invokes it.
 disable-model-invocation: true
 ---
 
 # Deploy the dashboard
 
-This publishes to the internet and the frame picks it up. Every step that changes something
-needs the user's go-ahead in this conversation.
+frame-bridge on the Mac mini serves the built dashboard to every frame (`docs/apple-integration.md`,
+"Serving the dashboard"). Deploying means copying `dashboard/dist/` into the directory it serves.
+Every step that changes something needs the user's go-ahead in this conversation.
+
+Until frame-bridge serves static files (phase 1), there is nothing to deploy to. Say so and stop.
 
 ## 1. Pre-flight (read only)
 
 ```sh
 cd dashboard
-git status --short                 # uncommitted changes? say so
-git log --oneline origin/main..HEAD   # deploying something not on main? say so
-npx wrangler whoami                # which Cloudflare account
-grep -n '"name"' wrangler.jsonc    # which Worker
+git status --short                     # uncommitted changes? say so
+git log --oneline origin/main..HEAD    # deploying something not on main? say so
 ```
 
-Stop and ask if:
-- `wrangler whoami` isn't logged in. The user runs `! npx wrangler login` themselves.
-- The Worker `name` is still `home-dashboard` from upstream and the user hasn't confirmed it's the
-  name they want on their account.
-- The working tree is dirty, or HEAD isn't on `main`.
+Ask the user for the Mac mini's address and the directory frame-bridge serves, if they haven't given
+them in this conversation. Don't write them into the repo.
+
+Stop and ask if the working tree is dirty or HEAD isn't on `main`.
 
 ## 2. Verify the build
 
@@ -32,22 +32,24 @@ fails them.
 
 ## 3. Deploy (after confirmation)
 
-Show the user the account, the Worker name, and the commit. `.claude/settings.json` denies
-`npm run deploy` and `wrangler deploy` to Claude on purpose, so the user runs it:
+Show the user the commit, the host and the directory. Claude doesn't run the copy; the user does,
+keeping the current version as `<dir>.previous` for rollback:
 
 ```
-! cd dashboard && PATH=/usr/local/bin:$PATH npm run deploy
+! ssh <mac> 'rm -rf <dir>.previous && cp -a <dir> <dir>.previous' && rsync -a --delete dashboard/dist/ <mac>:<dir>/
 ```
 
 ## 4. Check it
 
-- Open the deployed URL that wrangler prints. Check it loads and the console is clean.
-- If the dashboard uses the `/api` proxy, check that `/healthz` answers through the Worker.
-- The frame reloads on its own if the bundle fails to load (`index.html`). The kiosk app only
-  shows the new version after a reload. Tell the user if they need to reload the frame.
-- Report the URL and the deployed commit.
+- `curl -s -o /dev/null -w '%{http_code}' -b 'frame_token=<token>' http://<mac-ip>:8787/` returns
+  200, and `/healthz` answers. Without the cookie, both return 401.
+- The kiosk app only shows the new version after a reload. Tell the user to reload the frames.
+- Report the deployed commit.
 
 ## Rollback
 
-`npx wrangler deployments list` (read only) to find the deployment. The user runs
-`! cd dashboard && npx wrangler rollback <deployment-id>` themselves (it's denied to Claude).
+The user runs:
+
+```
+! ssh <mac> 'rm -rf <dir> && mv <dir>.previous <dir>'
+```

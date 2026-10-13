@@ -84,6 +84,6 @@ Stop the dev server when you're done.
 
 ## 5. On the frame (only if asked)
 
-The kiosk app loads a URL (`DEFAULT_URL` in `dashboard/kiosk/src/.../MainActivity.java`). To test
-on the device, the user has to deploy or point the kiosk at the dev server's LAN address. Ask
-before doing either.
+The kiosk app loads its saved URL (set over adb, see the comment at the top of
+`dashboard/kiosk/src/.../MainActivity.java`). To test on the device, the user has to deploy or point
+the kiosk at the dev server's LAN address. Ask before doing either.
