@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.3.0
+  version: 0.4.0
   summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -39,7 +39,7 @@ tags:
   - name: shopping
     description: Apple Reminders "Shopping" list via EventKit. Read only in this version.
   - name: lights
-    description: Philips Hue via the Hue Bridge CLIP v2 API.
+    description: Philips Hue via the Hue Bridge CLIP v2 API. Lights, rooms, zones and scenes.
   - name: weather
     description: Forecast from Open-Meteo, fetched and cached by frame-bridge. Read only.
   - name: photos
@@ -127,19 +127,23 @@ paths:
     get:
       operationId: listLights
       tags: [lights]
-      summary: List rooms and lights
+      summary: List rooms, zones, lights and scenes
       responses:
         '200':
-          description: Hue rooms and the lights in them.
+          description: Hue rooms and zones, the lights in them, and the scenes.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LightsState' }
               example:
                 rooms:
-                  - { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen }
+                  - { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen, kind: room, on: true, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001', '6d2b7c11-0000-4000-8000-000000000002'] }
+                  - { id: '0f6c1a9e-0000-4000-8000-00000000000b', name: Downstairs, kind: zone, on: true, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001'] }
                 devices:
                   - { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 80 }
                   - { id: '6d2b7c11-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Island, on: false, level: 100 }
+                scenes:
+                  - { id: '3a9d5e20-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Dinner, active: true }
+                  - { id: '3a9d5e20-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Bright, active: false }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -168,6 +172,56 @@ paths:
               schema: { $ref: '#/components/schemas/Light' }
               example: { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 60 }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/rooms/{id}:
+    put:
+      operationId: setRoom
+      tags: [lights]
+      summary: Turn a room or zone on or off, or dim it
+      description: |
+        Same body and rules as `setLight`, applied to every light in the room or zone.
+        `{ "on": false }` turns the whole group off. frame-bridge sends one Hue `grouped_light`
+        request, not one per light, so the bridge's rate limit isn't hit. Works for zones too.
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LightPatch' }
+            example: { on: false }
+      responses:
+        '200':
+          description: The room's state after the change, as the bridge reports it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Room' }
+              example: { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen, kind: room, on: false, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001', '6d2b7c11-0000-4000-8000-000000000002'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/scenes/{id}/recall:
+    post:
+      operationId: recallScene
+      tags: [lights]
+      summary: Activate a scene
+      description: |
+        Recalls the scene in its room or zone. One Hue request
+        (`PUT resource/scene/{id}` with `{"recall":{"action":"active"}}`). No request body.
+      parameters:
+        - $ref: '#/components/parameters/SceneId'
+      responses:
+        '200':
+          description: The scene after the change, now `active: true`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Scene' }
+              example: { id: '3a9d5e20-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Bright, active: true }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
@@ -269,6 +323,8 @@ paths:
         | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
         | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
         | `light` | `Light` | Replace that light in place |
+        | `room` | `Room` | Replace that room or zone in place |
+        | `scene` | `Scene` | Replace that scene in place |
         | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
         | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
 
@@ -339,6 +395,18 @@ components:
         capturing traffic.
 
   parameters:
+    RoomId:
+      name: id
+      in: path
+      required: true
+      description: A `Room.id`, of a room or a zone.
+      schema: { type: string }
+    SceneId:
+      name: id
+      in: path
+      required: true
+      description: A `Scene.id`.
+      schema: { type: string }
     LightId:
       name: id
       in: path
@@ -488,25 +556,64 @@ components:
 
     LightsState:
       type: object
-      required: [rooms, devices]
+      required: [rooms, devices, scenes]
       properties:
         rooms:
           type: array
+          description: Hue rooms and zones, told apart by `kind`.
           items: { $ref: '#/components/schemas/Room' }
         devices:
           type: array
           description: Lights only. Lights that aren't in a Hue room are left out.
           items: { $ref: '#/components/schemas/Light' }
+        scenes:
+          type: array
+          items: { $ref: '#/components/schemas/Scene' }
 
     Room:
       type: object
-      required: [id, name]
+      description: |
+        A Hue room or zone. A light can be in several zones, so membership is in `lights`, not
+        `Light.room`, which stays the light's one Hue room.
+      required: [id, name, kind, on, level, lights]
       properties:
         id:
           type: string
-          description: Hue `room` resource id.
+          description: Hue `room` or `zone` resource id.
         name:
           type: string
+        kind:
+          type: string
+          enum: [room, zone]
+        on:
+          type: boolean
+          description: True if any light in it is on.
+        level:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: |
+            Brightness in percent (Hue `grouped_light` `dimming.brightness`, rounded, at least 1).
+        lights:
+          type: array
+          description: The `Light.id`s in this room or zone.
+          items: { type: string }
+
+    Scene:
+      type: object
+      required: [id, room, name, active]
+      properties:
+        id:
+          type: string
+          description: Hue `scene` resource id.
+        room:
+          type: string
+          description: A `Room.id`, of a room or a zone.
+        name:
+          type: string
+        active:
+          type: boolean
+          description: True when Hue's `scene.status.active` isn't `inactive`.
 
     Light:
       type: object
@@ -556,6 +663,16 @@ components:
           properties:
             event: { type: string, const: light }
             data: { $ref: '#/components/schemas/Light' }
+        - type: object
+          required: [event, data]
+          properties:
+            event: { type: string, const: room }
+            data: { $ref: '#/components/schemas/Room' }
+        - type: object
+          required: [event, data]
+          properties:
+            event: { type: string, const: scene }
+            data: { $ref: '#/components/schemas/Scene' }
 
     ChangeNotice:
       type: object

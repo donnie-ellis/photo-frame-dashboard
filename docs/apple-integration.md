@@ -1,7 +1,8 @@
 # frame-bridge integration plan (Apple, Hue, weather)
 
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
-v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13.
+v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
+v0.4.0 (room and zone control, scenes) 2026-10-13.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -94,19 +95,21 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.3.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.4.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/calendar?from&to` | Events overlapping a range (max 120 days), recurring events expanded |
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
-| `GET /api/lights` | Hue rooms + lights |
+| `GET /api/lights` | Hue rooms and zones, lights, scenes |
 | `PUT /api/lights/{id}` | `{ on?, level? }` |
+| `PUT /api/rooms/{id}` | Same body, for a room or zone (one Hue `grouped_light` request) |
+| `POST /api/scenes/{id}/recall` | Activate a scene |
 | `GET /api/weather` | Today's high/low and 48 hourly temperature, condition and rain-chance values |
 | `GET /api/photos` | The "Frame" album (sampled) plus "On this day" photos |
 | `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
-| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos` (re-fetch notices), `light` (full object) |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos` (re-fetch notices), `light`, `room`, `scene` (full objects) |
 | `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
@@ -147,8 +150,18 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - **`/api/shopping` returns `{ stores, items }`, not a bare array.** `views/shopping.js` crashes on a
   `store` id missing from `DATA.stores`, so the stores come from the same config as the item mapping.
 - **`cat` is an enum** of the dashboard's categories plus `Other`, matching `catOrder` in `data.js`.
-- **No `PUT /api/rooms/{id}` yet.** No dashboard control toggles a whole room. Add it with
-  scenes (a scene now sends one `PUT` per light, which Hue rate-limits at about 10/s).
+- **Room and zone control, scenes (v0.4.0, additive).** `PUT /api/rooms/{id}` takes the same
+  `LightPatch` and works for rooms and zones. It is one Hue `grouped_light` request, so a whole-room
+  change doesn't need one `PUT` per light (Hue rate-limits at about 10/s). `POST
+  /api/scenes/{id}/recall` is one request too (`PUT resource/scene/{id}`,
+  `{"recall":{"action":"active"}}`). `Room.kind` is `room | zone` and `Room.lights` holds
+  membership, because a light can be in several zones; `Light.room` stays its one Hue room.
+  `Room.on` is true if any light is on. `Scene.active` is true when Hue's `scene.status.active`
+  isn't `inactive`. The names were proposed in issue #16.
+- **Default room is not in the API.** Each frame's default room is picked on screen and stored in
+  the dashboard's `localStorage`.
+- **Hue stays inside frame-bridge** with a hand-written CLIP v2 client. The
+  [OpenHue spec](https://github.com/openhue/openhue-api) is only a reference for models.
 - **Auth (v0.2.0):** a per-frame `frame_token` cookie, checked by frame-bridge itself. See
   [Auth](#auth-per-frame-tokens).
 - **Read only for calendar and shopping.** Writes are separate, later changes.
