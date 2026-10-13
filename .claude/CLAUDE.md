@@ -10,8 +10,9 @@ gitignored.
 A fork of wesbos/photo-frame-dashboard, now **fully diverged**. The goal is a heavily customized
 family dashboard on an Android photo frame, fed by real data from small intermediary services.
 
-- `dashboard/`: the product. A Vite web app deployed to Cloudflare Workers, plus `dashboard/kiosk/`,
-  a WebView Android app that shows it full screen.
+- `dashboard/`: the product. A Vite web app, served on the LAN by frame-bridge on the Mac mini, plus
+  `dashboard/kiosk/`, a WebView Android app that shows it full screen. No Cloudflare: see
+  `docs/apple-integration.md`.
 - `docs/`: integration plans and API contracts (ours), plus device/rooting notes (inherited).
 - `scripts/`: inherited device tooling (backup, root, Wi-Fi). Reference only.
 
@@ -50,7 +51,7 @@ Rules:
 5. Every service exposes `GET /healthz` with per-feed freshness, so the dashboard can show stale data.
 6. Breaking changes to a contract: say so explicitly, bump `info.version`, and list what has to
    change in the service repo.
-7. **Secrets never go in this repo**: Hue keys, certs, Cloudflare Access tokens, calendar names that
+7. **Secrets never go in this repo**: Hue keys, certs, frame tokens, calendar names that
    identify people outside the family. Use placeholders in examples.
 
 ## The device
@@ -159,7 +160,8 @@ in advance.
   TypeScript stays on 6.x until `svelte-check` supports 7. For UI changes, also run `npm run dev` and
   look at it in the browser.
 - OpenAPI specs: lint them before calling a contract change done (see the API skill).
-- **Never run `npm run deploy` or `wrangler deploy` without asking.** It publishes to Cloudflare.
+- **Never deploy.** The user runs deploys themselves (`deploy-dashboard` skill). Also never run
+  `npm run deploy` or `wrangler`: that script still publishes to upstream's Cloudflare setup.
 
 ## Skills
 
@@ -167,7 +169,7 @@ in advance.
 - `wire-feed`: replace a mock `DATA` feed with live data, or add a UI write.
 - `run-dashboard`: build, WebView 106 checks, run and look at it in the browser.
 - `mock-service`: Prism mock from a spec, and the Vite `/api` proxy.
-- `deploy-dashboard`: Cloudflare deploy. Runs only when the user invokes it.
+- `deploy-dashboard`: copy the build to the Mac mini. Runs only when the user invokes it.
 
 Node: these tools need 20.19+ or 22.12+. On the owner's Mac, nvm's default is 20.5.1, so use
 `PATH=/usr/local/bin:$PATH` (Node 22). Elsewhere, check `node --version` first.
@@ -187,8 +189,10 @@ Claude also runs from GitHub: `.github/workflows/claude.yml` (`@claude` on issue
 
 ## Known loose ends (don't "fix" without asking)
 
-- `dashboard/kiosk/.../MainActivity.java` `DEFAULT_URL` and `wrangler.jsonc` `name` still point
-  at the upstream deployment.
+- `dashboard/kiosk/.../MainActivity.java` `DEFAULT_URL` still points at the upstream deployment.
+  It's only used until a frame has a saved URL.
+- `wrangler.jsonc`, the `wrangler` dependency and the `deploy` script in `package.json` are left
+  over from Cloudflare. Remove them once frame-bridge serves the dashboard.
 - API type generation (`openapi-typescript`, `npm run gen:api`) is added when the first feed is
   wired (`wire-feed` skill).
 

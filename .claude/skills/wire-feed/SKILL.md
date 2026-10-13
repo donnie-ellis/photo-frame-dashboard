@@ -23,7 +23,7 @@ fallback. New data code is TypeScript in `dashboard/src/`. Vanilla views keep re
   Run it after every spec change and commit the output. Never edit `*.gen.ts`.
 - **Fetching:** `src/lib/api/<service>.ts`, one function per operation, using relative `/api/...`
   paths and an `AbortController` timeout (about 8 s). In dev, Vite proxies `/api` (`mock-service`
-  skill). In production, the Worker does.
+  skill). In production, frame-bridge serves the page and the API from one origin, so no proxy.
 - **State:** `src/lib/state/<feed>.svelte.ts` holds the feed, plus its `status` (`live`, `stale`,
   `mock`) and `updatedAt`. Big read-only feeds (events, shopping) use `$state.raw` and are
   replaced whole on each fetch. Never mutate them in place.

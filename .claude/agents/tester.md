@@ -36,7 +36,7 @@ Run every check that applies, even after one fails, and record each result.
    `npx @redocly/cli lint <spec>`. Errors = FAIL. Warnings: list them, don't fail.
 4. **Mock smoke test** (if a spec changed): start
    `npx @stoplight/prism-cli mock <spec> -p 4010` in the background. For each changed GET
-   endpoint, `curl -s -o /dev/null -w '%{http_code}' -H 'CF-Access-Client-Id: dev' -H 'CF-Access-Client-Secret: dev' localhost:4010<path>`
+   endpoint, `curl -s -o /dev/null -w '%{http_code}' -b 'frame_token=dev' localhost:4010<path>`
    must return 2xx. Without those headers Prism returns 401 by design. Required query
    parameters (e.g. `from`/`to` on `/api/calendar`) must be included. Stop
    Prism afterwards.

@@ -36,8 +36,8 @@ This repo owns the contracts. The services live in their own repos and implement
    - SSE (`/api/events`): `text/event-stream`. List each event name and its `data` schema in the
      description and in `components/schemas`.
    - `GET /healthz` reports per-feed `status`, `updatedAt` and `staleAfterSeconds`.
-   - Security: describe the Cloudflare Access service-token headers as a `securityScheme`. Never put
-     real tokens, hosts or keys in examples.
+   - Security: the per-frame `frame_token` cookie (`frameToken` `securityScheme`). Never put real
+     tokens, hosts or keys in examples.
 4. **Version.** A non-breaking addition bumps the minor version of `info.version`. Removing,
    renaming or retyping a field is breaking: bump the major version, and add a "Breaking changes"
    entry in the prose doc listing what the service repo must change.

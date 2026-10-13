@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.1.0
+  version: 0.2.0
   summary: Calendar, shopping list and lights for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -16,25 +16,22 @@ info:
     - IDs are opaque strings. Don't parse them.
     - Optional fields are omitted when there is no value. They are never `null`.
     - Errors use the `Error` schema.
+
+    frame-bridge also serves the built dashboard (`dashboard/dist/`) at `/`, so the page and the API
+    share one origin on the LAN. The static files are outside this contract but need the same
+    `frame_token` cookie.
   license:
     name: Private
     identifier: LicenseRef-Private
 servers:
   - url: http://{host}:8787
-    description: frame-bridge on the Mac mini, on the LAN. No Access token needed.
+    description: frame-bridge on the Mac mini, on the LAN.
     variables:
       host:
         default: mac-mini.invalid
-        description: The Mac mini's LAN hostname or IP. Placeholder, set your own.
-  - url: https://{tunnelHost}
-    description: Through Cloudflare Tunnel + Access.
-    variables:
-      tunnelHost:
-        default: bridge.invalid
-        description: The tunnel hostname. Placeholder, set your own.
+        description: The Mac mini's fixed LAN IP. Placeholder, set your own.
 security:
-  - accessClientId: []
-    accessClientSecret: []
+  - frameToken: []
 tags:
   - name: calendar
     description: Apple Calendar via EventKit. Read only.
@@ -234,20 +231,19 @@ paths:
 
 components:
   securitySchemes:
-    accessClientSecret:
+    frameToken:
       type: apiKey
-      in: header
-      name: CF-Access-Client-Secret
-      description: The secret half of the Cloudflare Access service token. See `accessClientId`.
-    accessClientId:
-      type: apiKey
-      in: header
-      name: CF-Access-Client-Id
+      in: cookie
+      name: frame_token
       description: |
-        Cloudflare Access service token. The client sends both `CF-Access-Client-Id` and
-        `CF-Access-Client-Secret`; Access checks them at the edge, and frame-bridge only sees
-        requests that passed. Normally the Cloudflare Worker adds these headers: the frame never
-        holds the token. On the LAN (port 8787) no token is needed.
+        A token issued to one frame. frame-bridge keeps a named list of token hashes (one per
+        frame, revocable on its own) and logs which frame made each request.
+
+        The kiosk app sets this cookie for the bridge's origin before loading the page, so the
+        page, every `fetch` and the `EventSource` stream send it without dashboard code touching
+        it. A cookie, not an `Authorization` header, because `EventSource` can't send headers.
+        Sent over plain HTTP on the LAN: it keeps casual visitors on the Wi-Fi out, not someone
+        capturing traffic.
 
   parameters:
     LightId:
@@ -265,7 +261,7 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: bad_request, detail: 'range exceeds 120 days' }
     Unauthorized:
-      description: Missing or rejected Access service token (returned by Cloudflare Access).
+      description: Missing, unknown or revoked `frame_token`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
