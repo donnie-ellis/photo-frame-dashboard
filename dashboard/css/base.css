@@ -1,6 +1,7 @@
 /* ---------------------------------------------------------------- reset */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #0B0B0B; }
+/* overscroll-behavior: no edge glow or scroll chaining when an inner list hits its end. */
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #0B0B0B; }
 body {
   font-family: var(--sans);
   font-size: var(--fs-body);
@@ -13,7 +14,7 @@ body {
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
 input { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
-img { display: block; }
+img { display: block; -webkit-user-drag: none; }
 h1, h2, h3, p { margin: 0; font-weight: inherit; }
 ul { margin: 0; padding: 0; list-style: none; }
 .i { flex: none; display: block; }
