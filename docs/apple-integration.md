@@ -128,7 +128,8 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 | `ShoppingItem.note` | `EKReminder.notes` |
 | `ShoppingItem.done` | `isCompleted`, completed items kept for a few hours |
 | `ShoppingItem.cat` / `store` | keyword → category/store map in frame-bridge config |
-| `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` resource ids |
+| `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` or `zone` resource ids |
+| `Scene.icon` | scene name → icon map in frame-bridge config, omitted if unmapped |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
 | `Weather.hi` / `lo` | Open-Meteo `daily.temperature_2m_max` / `_min`, today |
 | `Weather.t` / `p` | `hourly.temperature_2m` (rounded) / `hourly.precipitation_probability` |
@@ -158,6 +159,10 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   membership, because a light can be in several zones; `Light.room` stays its one Hue room.
   `Room.on` is true if any light is on. `Scene.active` is true when Hue's `scene.status.active`
   isn't `inactive`. The names were proposed in issue #16.
+- **Scene icons come from frame-bridge.** The control view draws an icon per scene, and Hue has no
+  icon name for a scene. frame-bridge maps scene names to icon names in its config, as it does for
+  weather conditions. The map is keyed by name, not id, because "Dinner" in two rooms is two Hue
+  scenes. Unmapped scenes have no `icon`, and the dashboard shows `bulb`.
 - **Default room is not in the API.** Each frame's default room is picked on screen and stored in
   the dashboard's `localStorage`.
 - **Hue stays inside frame-bridge** with a hand-written CLIP v2 client. The

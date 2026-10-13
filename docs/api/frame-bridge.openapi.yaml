@@ -142,7 +142,7 @@ paths:
                   - { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 80 }
                   - { id: '6d2b7c11-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Island, on: false, level: 100 }
                 scenes:
-                  - { id: '3a9d5e20-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Dinner, active: true }
+                  - { id: '3a9d5e20-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Dinner, active: true, icon: utensils }
                   - { id: '3a9d5e20-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Bright, active: false }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
@@ -217,7 +217,7 @@ paths:
         - $ref: '#/components/parameters/SceneId'
       responses:
         '200':
-          description: The scene after the change, now `active: true`.
+          description: 'The scene after the change, now `active: true`.'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Scene' }
@@ -614,6 +614,11 @@ components:
         active:
           type: boolean
           description: True when Hue's `scene.status.active` isn't `inactive`.
+        icon:
+          type: string
+          description: |
+            An icon name in `dashboard/js/icons.js`, from a scene name → icon map in frame-bridge
+            config. Omitted when the name isn't mapped; the dashboard then shows `bulb`.
 
     Light:
       type: object
