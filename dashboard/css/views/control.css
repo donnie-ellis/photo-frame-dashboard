@@ -36,8 +36,8 @@
   touch-action: pan-y; cursor: pointer;
 }
 .tile:active { transform: scale(.97); }
-.tile-fill { position: absolute; left: 0; top: 0; bottom: 0; width: var(--lvl); background: var(--warm); }
-.tile.is-drag { transform: scale(1.02); box-shadow: 0 10px 30px rgba(0, 0, 0, .15); }
+.tile-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transform: translateX(calc(var(--lvl) - 100%)); background: var(--warm); }
+.tile.is-drag { transform: scale(1.02); }
 .tile-icon, .tile-name, .tile-state { position: relative; z-index: 1; }
 .tile-icon { color: var(--mute); }
 .tile.is-on .tile-icon { color: var(--ink); }
