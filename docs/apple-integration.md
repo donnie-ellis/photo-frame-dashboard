@@ -196,6 +196,11 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   Approve once in System Settings → Privacy & Security.
 - Needs a logged-in user session for EventKit and iCloud sync: enable auto-login, run as a
   **LaunchAgent** (not a LaunchDaemon), disable sleep.
+- **Under launchd there is no privacy prompt.** The request is denied at once and the app shows up
+  switched off in System Settings → Privacy & Security: switch it on there, once. Sign the bundle
+  with a stable certificate (a self-signed one is enough), not ad hoc: an ad-hoc signature ties the
+  grant to that exact build, so every deploy would lose it. Tested for Photos (frame-bridge #9);
+  Calendars and Reminders are expected to match (frame-bridge #23).
 - Intel Mac minis top out at macOS 15 Sequoia. Fine for these APIs.
 - Subscribe to `EKEventStoreChanged` and re-query; debounce, since it fires in bursts.
 - Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes (check-off)
@@ -229,8 +234,13 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   and `isNetworkAccessAllowed = true` (photos in iCloud with "Optimize Mac Storage" need a
   download). Encode JPEG, cache on disk by id + size.
 - Changes: `PHPhotoLibraryChangeObserver` → `photos` SSE notice (debounced).
-- **Spike first:** check that shared album photos come back at full quality through PhotoKit on
-  the Mac mini. If not, use a regular album that the family adds to through iCloud Photos.
+- **Shared album** (spike: frame-bridge #9). PhotoKit stores shared album photos as a JPEG at
+  2048 px on the long edge, enough for the 1280 px `full` size, and cloud-only ones download in
+  well under a second. `location` is missing on some, so `place` is sometimes omitted.
+  `isFavorite` is always false for them: `fav` only means something for "On this day" photos.
+- The observer fires every few seconds while iCloud syncs, mostly for unrelated changes. Rebuild
+  only when `changeDetails(for:)` has something for the album or the "On this day" queries. A
+  photo added from a phone showed up about 10–15 s later.
 
 ### Weather (Open-Meteo)
 
@@ -295,7 +305,6 @@ per-phone token.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Check items off from the frame? (Needs Reminders write access; easy with EventKit.)
 - Weather units: °C or °F (frame-bridge config).
-- Shared or regular "Frame" album: depends on the PhotoKit spike.
 
 ## Breaking changes
 
