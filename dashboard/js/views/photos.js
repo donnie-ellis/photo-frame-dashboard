@@ -11,6 +11,11 @@
     b.querySelector('span').textContent = on ? 'Favourite' : 'Favourite';
   }
 
+  // The bridge can't write favourites, so the button goes away once real photos have loaded.
+  function syncFav() {
+    if (V.el) V.el.querySelector('[data-fav]').classList.toggle('is-hidden', App.isLive('photos'));
+  }
+
   App.register('photos', {
     show: function (el) {
       if (!V.el) {
@@ -49,9 +54,11 @@
           }
         });
       }
+      syncFav();
       V.show.start();
     },
-    resume: function () { V.show.start(); },
+    resume: function () { syncFav(); V.show.start(); },
     hide: function () { if (V.show) V.show.stop(); }
   });
+  App.on('data', function (p) { if (p === 'photos') syncFav(); });
 })();

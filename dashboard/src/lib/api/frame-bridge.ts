@@ -8,6 +8,16 @@ export type Scene = components['schemas']['Scene'];
 export type LightsState = components['schemas']['LightsState'];
 export type LightPatch = components['schemas']['LightPatch'];
 export type Health = components['schemas']['Health'];
+export type FeedHealth = components['schemas']['FeedHealth'];
+// Not `Event`: that name is the DOM's.
+export type ApiEvent = components['schemas']['Event'];
+export type ShoppingItem = components['schemas']['ShoppingItem'];
+export type ShoppingItemPatch = components['schemas']['ShoppingItemPatch'];
+export type ShoppingList = components['schemas']['ShoppingList'];
+export type Store = components['schemas']['Store'];
+export type Weather = components['schemas']['Weather'];
+export type WeatherCondition = components['schemas']['WeatherCondition'];
+export type Photo = components['schemas']['Photo'];
 
 const TIMEOUT_MS = 8000;
 
@@ -32,9 +42,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-function put<T>(path: string, body: LightPatch): Promise<T> {
+function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | ShoppingItemPatch): Promise<T> {
   return request<T>(path, {
-    method: 'PUT',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -42,9 +52,34 @@ function put<T>(path: string, body: LightPatch): Promise<T> {
 
 export const listLights = () => request<LightsState>('/api/lights');
 export const setLight = (id: string, patch: LightPatch) =>
-  put<Light>('/api/lights/' + encodeURIComponent(id), patch);
+  send<Light>('PUT', '/api/lights/' + encodeURIComponent(id), patch);
 export const setRoom = (id: string, patch: LightPatch) =>
-  put<Room>('/api/rooms/' + encodeURIComponent(id), patch);
+  send<Room>('PUT', '/api/rooms/' + encodeURIComponent(id), patch);
 export const recallScene = (id: string) =>
   request<Scene>('/api/scenes/' + encodeURIComponent(id) + '/recall', { method: 'POST' });
 export const getHealth = () => request<Health>('/healthz');
+
+const pad = (n: number) => (n < 10 ? '0' : '') + n;
+
+/** Local time with its UTC offset (`2026-10-12T00:00:00-04:00`), as the spec asks. Not toISOString(). */
+function isoLocal(d: Date): string {
+  const off = -d.getTimezoneOffset();
+  const a = Math.abs(off);
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${off < 0 ? '-' : '+'}${pad(Math.floor(a / 60))}:${pad(a % 60)}`
+  );
+}
+
+export const listEvents = (from: Date, to: Date) =>
+  request<ApiEvent[]>(
+    '/api/calendar?from=' + encodeURIComponent(isoLocal(from)) + '&to=' + encodeURIComponent(isoLocal(to)),
+  );
+export const getShoppingList = () => request<ShoppingList>('/api/shopping');
+export const setShoppingItem = (id: string, patch: ShoppingItemPatch) =>
+  send<ShoppingItem>('PATCH', '/api/shopping/' + encodeURIComponent(id), patch);
+export const getWeather = () => request<Weather>('/api/weather');
+export const listPhotos = () => request<Photo[]>('/api/photos');
+export const photoUrl = (id: string, size: 'full' | 'half' = 'full') =>
+  '/api/photos/' + encodeURIComponent(id) + '/image?size=' + size;

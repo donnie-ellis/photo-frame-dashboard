@@ -197,7 +197,8 @@
       '<button class="icon-btn" data-nav="1" aria-label="Next">' + App.icon('right', 24) + '</button>' +
       '<button class="btn btn--ghost' + (isToday ? ' is-hidden' : '') + '" data-today>Today</button>' +
       '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (V.mode === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
-      '<button class="fab" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
+      // The bridge's calendar is read-only, so no way to add an event once it has loaded.
+      (App.isLive('calendar') ? '' : '<button class="fab" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>') +
       '</header>';
   }
 
@@ -360,5 +361,6 @@
     var now = App.now();
     if (line) { line.style.top = y(now) + 'px'; line.querySelector('span').textContent = App.fmt.time(now, false); }
   });
+  App.on('data', function (p) { if (p === 'events' && App.current === 'calendar') render(); });
   App.on('time', function () { V.date = App.dayStart(App.now()); V.scroll = null; });
 })();
