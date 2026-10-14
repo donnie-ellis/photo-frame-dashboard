@@ -24,6 +24,22 @@
   --warm-rgb: 255 196 92;
   --night: #D8321F;
 
+  /* text/fill on ink surfaces, tints on paper, and fixed light surfaces. Day values are the
+     old literals; the nightdash block below overrides them. */
+  --on-ink: #FFFFFF;
+  --on-ink-rgb: 255 255 255;
+  --tint-rgb: 0 0 0;
+  --warn-ink: #B45F00;
+  --warn-ink-2: #8A4A00;
+  --wet: #1F6FEB;
+  --tile-on: #FFF1D0;
+  --blind-fill: #BFD6F2;
+  --blind-on: #E4EEFA;
+  --field: #FFFFFF;
+  --field-hint: #AAA59B;
+  --task-star: #E8A200;
+  --task-done: #C98A00;
+
   /* person colour defaults (overridden inline per element) */
   --c: var(--ink);
   --c-rgb: var(--ink-rgb);
@@ -53,7 +69,7 @@
 
 /* Accent presets. Attribute-scoped (not :root only) so drawer swatches show their own colour.
    An unknown id matches nothing and falls back to the ink default.
-   Night values are for #25 (not wired up yet). Contrast is against --paper (day). */
+   Night values are in the nightdash blocks at the end. Contrast is against --paper (day). */
 [data-accent="ink"] { /* night #F2DFC2; day 16.3:1 */
   --accent: #111111; --accent-rgb: 17 17 17; --accent-ink: var(--paper);
 }
@@ -65,4 +81,51 @@
 }
 [data-accent="sage"] { /* night #9DBF9A; day 5.1:1 */
   --accent: #4D6B4F; --accent-rgb: 77 107 79; --accent-ink: #FFFFFF;
+}
+
+/* Night dashboard (tap on the night clock). Dark amber palette, no filters.
+   var() values are re-declared here because they resolve at :root to day values. */
+.stage[data-mode="nightdash"] {
+  --paper: #1A0907;
+  --paper-2: #2D100C;
+  --card: #26110B;
+  --ink: #E8C48E;
+  --ink-rgb: 232 196 142;
+  --ink-2: #C9A672;
+  --mute: #9C7A55;
+  --line: #4A2A1C;
+  --alert: #F0644A;
+  --alert-rgb: 240 100 74;
+  --amber: #E89A3C;
+  --amber-rgb: 232 154 60;
+  --ok: #7FB27A;
+  --warm: #C98A3A;
+  --warm-rgb: 201 138 58;
+  --on-ink: #1A0907;
+  --on-ink-rgb: 26 9 7;
+  --tint-rgb: 232 196 142;
+  --warn-ink: #E89A3C;
+  --warn-ink-2: #E89A3C;
+  --wet: #7FA8F0;
+  --tile-on: #3A1E12;
+  --blind-fill: #5A3A22;
+  --blind-on: #3A1E12;
+  --field: #1A0907;
+  --field-hint: #9C7A55;
+  --task-star: #E89A3C;
+  --task-done: #D9A23A;
+  --accent: var(--ink);
+  --accent-rgb: var(--ink-rgb);
+  --accent-ink: var(--paper);
+  --c: var(--ink);
+  --c-rgb: var(--ink-rgb);
+  --c-ink: #1A0907;
+}
+[data-accent="steel"] .stage[data-mode="nightdash"] { --accent: #86AACB; --accent-rgb: 134 170 203; --accent-ink: var(--paper); }
+[data-accent="ember"] .stage[data-mode="nightdash"] { --accent: #F08A5D; --accent-rgb: 240 138 93; --accent-ink: var(--paper); }
+[data-accent="sage"] .stage[data-mode="nightdash"] { --accent: #9DBF9A; --accent-rgb: 157 191 154; --accent-ink: var(--paper); }
+
+/* People: inline --c wins over the block above, so the night variant (--cn*) is swapped in here. */
+.stage[data-mode="nightdash"] [style*="--cn:"] {
+  --c: var(--cn) !important; --c-rgb: var(--cn-rgb) !important; --c-ink: var(--cn-ink) !important;
 }

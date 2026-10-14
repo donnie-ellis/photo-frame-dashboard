@@ -77,7 +77,9 @@
   };
   App.pstyle = function (p) {
     if (typeof p === 'string') p = App.person(p);
-    return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
+    var s = '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
+    if (p.night) s += ';--cn:' + p.night.color + ';--cn-rgb:' + p.night.rgb + ';--cn-ink:' + p.night.ink;
+    return s;
   };
   App.avatar = function (p, size, cls) {
     if (typeof p === 'string') p = App.person(p);

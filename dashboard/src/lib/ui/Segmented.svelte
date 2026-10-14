@@ -55,11 +55,11 @@
   .segmented--light button { color: var(--ink-2); }
   .segmented--light button.on { background: var(--accent); color: var(--accent-ink); }
 
-  .segmented--dark { background: rgba(255, 255, 255, 0.1); }
-  .segmented--dark button { color: rgba(255, 255, 255, 0.75); }
+  .segmented--dark { background: rgb(var(--on-ink-rgb) / 0.1); }
+  .segmented--dark button { color: rgb(var(--on-ink-rgb) / 0.75); }
   .segmented--dark button.on { background: var(--paper); color: var(--ink); }
 
   .segmented--glass { background: rgba(0, 0, 0, 0.35); }
   .segmented--glass button { color: rgba(255, 255, 255, 0.85); }
-  .segmented--glass button.on { background: #fff; color: var(--ink); }
+  .segmented--glass button.on { background: var(--on-ink); color: var(--ink); }
 </style>

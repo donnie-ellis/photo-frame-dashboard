@@ -39,7 +39,7 @@
 .ch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ch-text b { font-size: 18px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
 .ch-text small { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-min); font-weight: 700; color: var(--mute); }
-.ch-text small .i { color: #E8A200; }
+.ch-text small .i { color: var(--task-star); }
 .ch-late { color: var(--alert) !important; text-transform: uppercase; letter-spacing: .08em; }
 .ch.is-overdue { box-shadow: inset 0 0 0 2px var(--alert); }
 .ch-check {
@@ -57,7 +57,7 @@
 .ch-none { font-size: 22px; color: var(--mute); padding: 12px 6px; }
 .ch-alldone { font-size: 40px; text-align: center; padding: 6px 0 4px; color: var(--c); }
 .ch-lane:not([data-lane="otto"]) .ch-alldone { color: var(--c); }
-.ch-lane[data-lane="otto"] .ch-alldone { color: #C98A00; }
+.ch-lane[data-lane="otto"] .ch-alldone { color: var(--task-done); }
 
 .ch-week { padding: 10px 12px 14px; border-top: 1px solid var(--line); flex: none; }
 .ch-week .label { font-size: 12px; margin-bottom: 6px; }

@@ -21,12 +21,12 @@ window.DATA = (function () {
   var ALL = ['alex', 'jordan', 'maya', 'otto'];
 
   var people = [
-    { id: 'alex', name: 'Wes', color: '#2D5BFF', rgb: '45 91 255', ink: '#FFFFFF' },
-    { id: 'jordan', name: 'Claudia', color: '#E4007C', rgb: '228 0 124', ink: '#FFFFFF' },
-    { id: 'maya', name: 'Buzzsaw', age: 10, color: '#00A36C', rgb: '0 163 108', ink: '#FFFFFF' },
-    { id: 'otto', name: 'Skidmark', age: 6, color: '#FFB000', rgb: '255 176 0', ink: '#111111' }
+    { id: 'alex', name: 'Wes', color: '#2D5BFF', rgb: '45 91 255', ink: '#FFFFFF', night: { color: '#7D93E0', rgb: '125 147 224', ink: '#1A0907' } },
+    { id: 'jordan', name: 'Claudia', color: '#E4007C', rgb: '228 0 124', ink: '#FFFFFF', night: { color: '#E070A8', rgb: '224 112 168', ink: '#1A0907' } },
+    { id: 'maya', name: 'Buzzsaw', age: 10, color: '#00A36C', rgb: '0 163 108', ink: '#FFFFFF', night: { color: '#5FB08A', rgb: '95 176 138', ink: '#1A0907' } },
+    { id: 'otto', name: 'Skidmark', age: 6, color: '#FFB000', rgb: '255 176 0', ink: '#111111', night: { color: '#D9A23A', rgb: '217 162 58', ink: '#1A0907' } }
   ];
-  var family = { id: 'family', name: 'Family', color: '#111111', rgb: '17 17 17', ink: '#FFFFFF' };
+  var family = { id: 'family', name: 'Family', color: '#111111', rgb: '17 17 17', ink: '#FFFFFF', night: { color: '#E8C48E', rgb: '232 196 142', ink: '#1A0907' } };
 
   // ---------------------------------------------------------------- calendar
   var events = [
