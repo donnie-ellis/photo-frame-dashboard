@@ -4,6 +4,8 @@
   var D = window.DATA;
 
   function src(p, big) {
+    // Live photos have an id and no seed; the bridge resizes them (same URL as photoUrl in src/lib/api).
+    if (!p.seed) return '/api/photos/' + encodeURIComponent(p.id) + '/image?size=' + (big ? 'full' : 'half');
     var w = p.o === 'p' ? 800 : 1600, h = p.o === 'p' ? 1200 : 1000;
     if (!big) { w = Math.round(w / 2); h = Math.round(h / 2); }
     return App.img(p.seed, w, h);
@@ -19,7 +21,7 @@
     return {
       date: App.fmt.month(d) + ' ' + d.getDate() + ', ' + d.getFullYear(),
       monthYear: App.fmt.month(d) + ' ' + d.getFullYear(),
-      kicker: kicker, onThisDay: onThisDay, place: p.place, from: App.person(p.from)
+      kicker: kicker, onThisDay: onThisDay, place: p.place || '', from: p.from ? App.person(p.from) : null
     };
   };
 
@@ -31,7 +33,7 @@
   function caption(ps, size) {
     var m = App.photoMeta(ps[0]);
     return '<div class="cap cap--' + (size || 'l') + '">' +
-      '<div class="cap-kicker">' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.kicker + ' · ' + App.esc(m.place) + '</div>' +
+      '<div class="cap-kicker">' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.kicker + (m.place ? ' · ' + App.esc(m.place) : '') + '</div>' +
       '<div class="cap-date serif">' + (ps.length > 1 ? m.monthYear : m.date) + '</div>' +
       '</div>';
   }
@@ -59,7 +61,7 @@
       var p = ps[0], m = App.photoMeta(p), rot = (Math.random() * 5 - 2.5).toFixed(1);
       return '<div class="slide slide--polaroid"><img class="blurfill" src="' + src(p) + '" alt="">' +
         '<figure class="polaroid polaroid--' + p.o + '" style="transform:rotate(' + rot + 'deg)"><div class="polaroid-img"><img src="' + src(p, true) + '" alt=""></div>' +
-        '<figcaption class="serif"><i>' + App.esc(m.place) + ', ' + m.monthYear + '</i></figcaption></figure></div>';
+        '<figcaption class="serif"><i>' + (m.place ? App.esc(m.place) + ', ' : '') + m.monthYear + '</i></figcaption></figure></div>';
     }
   };
 
@@ -82,6 +84,8 @@
     this.queue = q;
   };
   S.take = function (pred) {
+    // The live feed replaces D.photos whole: drop queued photos from the old list.
+    if (this.list !== D.photos) { this.list = D.photos; this.queue = []; }
     if (!this.queue.length) this.refill();
     for (var i = 0; i < this.queue.length; i++) if (!pred || pred(this.queue[i])) return this.queue.splice(i, 1)[0];
     return null;

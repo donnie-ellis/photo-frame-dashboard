@@ -2,7 +2,13 @@
 (function () {
   'use strict';
   var D = window.DATA;
-  var V = { el: null, store: 'all', query: '', drawer: false, pending: {}, flash: null };
+  var V = { local: false, ro: false, el: null, store: 'all', query: '', drawer: false, pending: {}, flash: null };
+
+  // Once the list has loaded from the bridge, only check-off works: no add, qty or clear.
+  function ro() { return App.isLive('shopping'); }
+  function byId(id) { return D.groceries.filter(function (x) { return x.id === id; })[0]; }
+  // Set done through the store; V.local stops our own change from repainting the whole list.
+  function setDone(id, done) { V.local = true; App.setShoppingDone(id, done); V.local = false; }
 
   function open() { return D.groceries.filter(function (g) { return !g.done && (V.store === 'all' || g.store === V.store); }); }
   function done() { return D.groceries.filter(function (g) { return g.done && (V.store === 'all' || g.store === V.store); }); }
@@ -26,7 +32,8 @@
       '<span class="s-name"><b>' + App.esc(g.name) + '</b>' + (g.note ? '<small>' + App.esc(g.note) + '</small>' : '') + '</span>' +
       (V.store === 'all' && g.store === 'costco' ? '<span class="s-store">Costco</span>' : '') +
       '</button>' +
-      '<div class="s-qty"><button data-qty="-1" data-id="' + g.id + '" aria-label="Less">' + App.icon('minus', 22) + '</button><span class="num">' + g.qty + '</span><button data-qty="1" data-id="' + g.id + '" aria-label="More">' + App.icon('plus', 22) + '</button></div>' +
+      (ro() ? (g.qty > 1 ? '<span class="s-qty-ro num">×' + g.qty + '</span>' : '') :
+        '<div class="s-qty"><button data-qty="-1" data-id="' + g.id + '" aria-label="Less">' + App.icon('minus', 22) + '</button><span class="num">' + g.qty + '</span><button data-qty="1" data-id="' + g.id + '" aria-label="More">' + App.icon('plus', 22) + '</button></div>') +
       '</div>';
   }
 
@@ -41,7 +48,7 @@
         '<button class="s-drawer-h" data-drawer><span>' + App.icon('check', 22) + ' Got it <b class="num">(' + d.length + ')</b></span><span class="label">' + (V.drawer ? 'Hide' : 'Show') + '</span></button>' +
         (V.drawer ? '<div class="s-drawer-list">' + d.map(function (g) {
           return '<button class="s-got" data-revive="' + g.id + '">' + App.esc(g.name) + '<span class="label">Add back</span></button>';
-        }).join('') + '<button class="btn btn--ghost s-clear" data-clear>Clear ' + d.length + ' checked items</button></div>' : '') +
+        }).join('') + (ro() ? '' : '<button class="btn btn--ghost s-clear" data-clear>Clear ' + d.length + ' checked items</button>') + '</div>' : '') +
         '</div>' : '');
   }
 
@@ -111,7 +118,7 @@
   }
 
   function paintList() { var l = V.el.querySelector('.s-list'); var st = l.scrollTop; l.innerHTML = listHTML(); l.scrollTop = st; paintHead(); }
-  function paintSuggest() { V.el.querySelector('.s-suggest').innerHTML = suggestHTML(); }
+  function paintSuggest() { var s = V.el.querySelector('.s-suggest'); if (s) s.innerHTML = suggestHTML(); }
   function paintHead() {
     var all = D.groceries.filter(function (g) { return !g.done; });
     V.el.querySelector('.s-count').innerHTML = '<span class="num">' + open().length + '</span> to get';
@@ -121,19 +128,22 @@
     }).join('');
   }
   function render() {
-    V.el.innerHTML = '<div class="shop">' +
+    V.ro = ro();
+    V.el.innerHTML = '<div class="shop' + (ro() ? ' shop--ro' : '') + '">' +
       '<header class="s-head"><div><div class="label">Shared list</div><h1 class="serif">Groceries</h1></div><div class="s-count"></div><div class="seg s-stores"></div></header>' +
       '<div class="s-list"></div>' +
-      '<aside class="s-side">' +
+      (ro() ? '' : '<aside class="s-side">' +
       '  <div class="s-add">' +
       '    <label class="s-input-wrap">' + App.icon('plus', 30) + '<input class="s-input" placeholder="Add an item…" autocomplete="off" enterkeyhint="done"></label>' +
       '  </div>' +
       '  <div class="s-suggest"></div>' +
-      '</aside></div>';
+      '</aside>') + '</div>';
     var input = V.el.querySelector('.s-input');
-    input.value = V.query;
-    input.addEventListener('input', function () { V.query = input.value; paintSuggest(); });
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && input.value.trim()) { add(input.value); } });
+    if (input) {
+      input.value = V.query;
+      input.addEventListener('input', function () { V.query = input.value; paintSuggest(); });
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && input.value.trim()) { add(input.value); } });
+    }
     paintList(); paintSuggest();
   }
 
@@ -173,21 +183,18 @@
     setTimeout(function () {
       if (!V.pending[g.id]) return;
       delete V.pending[g.id];
-      g.done = true;
+      setDone(g.id, true);
       removeRow(g);
       refreshSuggestFor(g);
-      App.emit('data');
     }, 1200);
     App.toast('<b>' + App.esc(g.name) + '</b> checked off', {
       icon: 'check',
       undo: function () {
-        var wasDone = g.done;
+        var wasDone = byId(g.id).done;
         delete V.pending[g.id];
-        g.done = false;
-        if (wasDone) paintList();
+        if (wasDone) { setDone(g.id, false); paintList(); }
         else { var r = V.el.querySelector('.s-list [data-id="' + g.id + '"]'); if (r) r.classList.remove('is-checking'); }
         refreshSuggestFor(g);
-        App.emit('data');
       }
     });
   }
@@ -195,7 +202,7 @@
   function onClick(e) {
     var t;
     if ((t = e.target.closest('[data-check]'))) {
-      var g = D.groceries.filter(function (x) { return x.id === t.dataset.check; })[0];
+      var g = byId(t.dataset.check);
       if (g && !V.pending[g.id]) check(g);
       else if (g) { delete V.pending[g.id]; t.parentNode.classList.remove('is-checking'); }
       return;
@@ -211,8 +218,8 @@
     if ((t = e.target.closest('[data-store]'))) { V.store = t.dataset.store; return paintList(); }
     if ((t = e.target.closest('[data-drawer]'))) { V.drawer = !V.drawer; return paintList(); }
     if ((t = e.target.closest('[data-revive]'))) {
-      var r = D.groceries.filter(function (x) { return x.id === t.dataset.revive; })[0];
-      r.done = false; paintList(); paintSuggest(); App.emit('data');
+      var r = byId(t.dataset.revive);
+      setDone(r.id, false); paintList(); paintSuggest();
       return App.toast('Added back <b>' + App.esc(r.name) + '</b>', { icon: 'cart', ms: 2500 });
     }
     if ((t = e.target.closest('[data-clear]'))) {
@@ -225,6 +232,12 @@
       });
     }
   }
+
+  // The bridge replaced the list (load, change notice, or a write finishing or rolling back).
+  App.on('data', function (p) {
+    if (V.local || App.current !== 'shopping' || (p !== 'groceries' && p !== 'stores')) return;
+    if (ro() !== V.ro) render(); else paintList();
+  });
 
   App.register('shopping', {
     show: function (el) {

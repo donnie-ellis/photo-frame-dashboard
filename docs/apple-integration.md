@@ -267,18 +267,32 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 
 ### Dashboard side
 
-- Add a small `api.js` that fetches the three feeds and populates `window.DATA` in place, so
-  `views/calendar.js`, `views/shopping.js`, and `views/control.js` keep working unchanged.
-- Keep mock data as the fallback when the API is unreachable (useful for local dev too).
+- Feeds live in Svelte stores (`src/lib/state/`: `calendar`, `shopping`, `weather`, `photos`, plus
+  `lights`), fetched through `src/lib/api/frame-bridge.ts`. Each store starts from the `js/data.js`
+  mock and, after every successful fetch, replaces the matching `window.DATA` property whole
+  (`events`, `groceries` and `stores`, `weather`, `photos`) and calls `App.emit('data', <prop>)`, so
+  the vanilla views keep working. The mock stays as the fallback when the bridge is unreachable.
+- The four non-light stores are activated once in `src/main.ts` and stay live for the page
+  lifetime, because several views and the ambient screen read them. The SSE stream
+  (`src/lib/api/events.ts`) is reference counted, with a 30 s poll if it fails, and `/healthz` is
+  polled once a minute for all stores (stale indicator).
+- Release 1 calendar fetch window: today minus 35 days to today plus 84 days. The view pages by
+  day, week and month, and the spec allows up to 120 days. Reloads on `calendar` notices and when
+  the local day changes.
+- Once a feed has loaded from the bridge (stale counts as loaded), the dashboard hides what the
+  bridge cannot do: the calendar "Add event" button, the photo "Favourite" button, and on shopping
+  the add input and suggestions, quantity steppers and "Clear checked items". Check-off and
+  "Add back" stay, and are optimistic (rolled back with a toast on error).
 - Lights: the Svelte lights view (`src/views/lights`) uses `/api/lights`, `/api/rooms/{id}`, scene
   recall and the SSE events, with optimistic updates and rollback on error. `views/control.js`
   (`App.setDevice`) stays on mock data until it is converted or removed.
 - Remove or hide non-light device tiles (blinds, locks, garage, cameras, climate) until those
   have real sources.
-- Weather: index the 48-hour arrays without wrapping (`App.hourly`), and add `snow`/`storm` icons
-  and labels.
-- Photos: build image URLs from `id` (`App.photoSrc`), handle missing `from` and `place` in
-  captions, and hide the favorite button.
+- Weather: `App.hourly` indexes the 48-hour arrays without wrapping, and `snow`/`storm` have
+  icons and labels.
+- Photos: image URLs are built from `id` (`App.photoSrc`), and captions cope with a missing `from`
+  and `place`.
+- The person ids in `js/data.js` are placeholders and must match frame-bridge's people config.
 
 ### People's status
 

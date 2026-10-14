@@ -6,11 +6,11 @@ import type { Light, LightPatch, Room, Scene } from '../api/frame-bridge';
 import * as events from '../api/events';
 import { toast } from '../ui';
 import { buildMock } from './lights.mock';
+import { Freshness, watchHealth, type FeedStatus } from './feed.svelte';
 
-export type FeedStatus = 'live' | 'stale' | 'mock';
+export type { FeedStatus };
 
 const ROOM_KEY = 'lights.defaultRoom';
-const HEALTH_MS = 60000;
 
 function readStoredRoom(): string | null {
   try {
@@ -33,17 +33,14 @@ class LightsStore {
   rooms = $state.raw<Room[]>([]);
   devices = $state.raw<Light[]>([]);
   scenes = $state.raw<Scene[]>([]);
-  updatedAt = $state.raw<Date | null>(null);
   pending = $state.raw<ReadonlySet<string>>(new Set());
   /** Raw stored id. Use `defaultRoom`, which checks it against the rooms. */
   storedRoom = $state<string | null>(readStoredRoom());
 
-  // live = loaded from the bridge at least once; failing = the last fetch or health check was bad.
-  #live = $state(false);
-  #failing = $state(false);
+  #fresh = new Freshness();
+  #active = false;
   #inflight = new Map<string, number>();
   #unsubs: Array<() => void> = [];
-  #healthTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
     const mock = buildMock();
@@ -53,8 +50,11 @@ class LightsStore {
   }
 
   get status(): FeedStatus {
-    if (!this.#live) return 'mock';
-    return this.#failing ? 'stale' : 'live';
+    return this.#fresh.status;
+  }
+
+  get updatedAt(): Date | null {
+    return this.#fresh.updatedAt;
   }
 
   /** The frame's room, if the stored id exists in the current rooms. Checked against mock rooms too,
@@ -80,29 +80,17 @@ class LightsStore {
       this.rooms = s.rooms;
       this.devices = s.devices;
       this.scenes = s.scenes;
-      this.updatedAt = new Date();
-      this.#live = true;
-      this.#failing = false;
+      this.#fresh.ok();
     } catch {
       // Keep what we have (mock on first load).
-      if (this.#live) this.#failing = true;
-    }
-  }
-
-  async checkHealth(): Promise<void> {
-    if (!this.#live) return;
-    try {
-      const f = (await api.getHealth()).feeds.lights;
-      const age = f.updatedAt ? (Date.now() - new Date(f.updatedAt).getTime()) / 1000 : Infinity;
-      this.#failing = f.status === 'error' || age > f.staleAfterSeconds;
-    } catch {
-      this.#failing = true;
+      this.#fresh.fail();
     }
   }
 
   /** Called when the view is shown. */
   activate(): void {
-    this.deactivate();
+    if (this.#active) return;
+    this.#active = true;
     void this.load();
     events.start();
     this.#unsubs = [
@@ -110,16 +98,16 @@ class LightsStore {
       events.on('room', (r: Room) => (this.rooms = replaceById(this.rooms, r))),
       events.on('scene', (s: Scene) => (this.scenes = replaceById(this.scenes, s))),
       events.onPoll(() => void this.load()),
+      watchHealth('lights', (f) => this.#fresh.applyHealth(f)),
     ];
-    this.#healthTimer = setInterval(() => void this.checkHealth(), HEALTH_MS);
   }
 
   /** Called when the view is hidden: no stream, polling or timers while off screen. */
   deactivate(): void {
+    if (!this.#active) return;
+    this.#active = false;
     this.#unsubs.forEach((u) => u());
     this.#unsubs = [];
-    clearInterval(this.#healthTimer);
-    this.#healthTimer = undefined;
     events.stop();
   }
 
@@ -140,7 +128,7 @@ class LightsStore {
     const snap = this.#snapshot([id]);
     this.#setLocalLight(prev, patch);
     this.#syncRooms([id], null);
-    if (!this.#live) return;
+    if (this.status === 'mock') return;
     await this.#send([id], snap, prev.name, async () => {
       this.devices = replaceById(this.devices, await api.setLight(id, patch));
       this.#syncRooms([id], null);
@@ -158,7 +146,7 @@ class LightsStore {
       level: patch.level ?? prev.level,
     });
     this.#syncRooms(prev.lights, id);
-    if (!this.#live) return;
+    if (this.status === 'mock') return;
     await this.#send([id, ...prev.lights], snap, prev.name, async () => {
       this.rooms = replaceById(this.rooms, await api.setRoom(id, patch));
       // Without the stream, the per-light results only arrive by re-fetching.
@@ -171,12 +159,12 @@ class LightsStore {
     if (!prev) return;
     const before = this.scenes;
     this.scenes = this.scenes.map((s) => (s.room === prev.room ? { ...s, active: s.id === id } : s));
-    if (!this.#live) return;
+    if (this.status === 'mock') return;
     this.#mark([id], 1);
     try {
       this.scenes = replaceById(this.scenes, await api.recallScene(id));
       if (!events.connected()) await this.load();
-      this.#failing = false;
+      this.#fresh.clear();
     } catch {
       this.scenes = before;
       toast(`Couldn’t start ${prev.name} · it may be offline`, { tone: 'error', icon: 'bolt' });
@@ -216,7 +204,7 @@ class LightsStore {
       const lit = r.lights.flatMap((id) => dev.get(id) ?? []).filter((l) => l.on);
       const on = lit.length > 0;
       // Offline demo only: the bridge reports the real group level.
-      const level = !this.#live && on ? Math.max(...lit.map((l) => l.level)) : r.level;
+      const level = this.status === 'mock' && on ? Math.max(...lit.map((l) => l.level)) : r.level;
       return on === r.on && level === r.level ? r : { ...r, on, level };
     });
   }
@@ -240,7 +228,7 @@ class LightsStore {
     this.#mark(ids, 1);
     try {
       await run();
-      this.#failing = false;
+      this.#fresh.clear();
     } catch {
       this.#restore(snap);
       toast(`Couldn’t change ${name} · it may be offline`, { tone: 'error', icon: 'bolt' });

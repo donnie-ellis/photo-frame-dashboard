@@ -503,7 +503,6 @@ export interface components {
         };
         /**
          * @description An icon name in `dashboard/js/icons.js`. `sun` is clear by day, `moon` clear by night.
-         *     `snow` and `storm` have no icon yet; the dashboard adds them when the feed is wired.
          *     Open-Meteo weather codes map as: 0–1 → sun/moon, 2 → partly, 3, 45, 48 → cloud,
          *     51–67, 80–82 → rain, 71–77, 85–86 → snow, 95–99 → storm.
          * @enum {string}
