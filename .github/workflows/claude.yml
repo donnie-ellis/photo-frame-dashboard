@@ -52,5 +52,5 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # npm/npx: type check, build, gen:api, Redocly lint and Prism mock (see .claude/CLAUDE.md)
-          claude_args: '--allowedTools "Bash(node --version),Bash(npm ci),Bash(npm i:*),Bash(npm install:*),Bash(npm run check),Bash(npm run build),Bash(npm run gen:api),Bash(npx @redocly/cli:*),Bash(npx @stoplight/prism-cli:*)"'
+          claude_args: '--allowedTools "Bash(node --version),Bash(npm ci:*),Bash(npm i:*),Bash(npm install:*),Bash(npm run check:*),Bash(npm run build:*),Bash(npm run gen:api:*),Bash(npx @redocly/cli:*),Bash(npx @stoplight/prism-cli:*)"'
 
