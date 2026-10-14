@@ -1,6 +1,6 @@
 <script lang="ts">
   // Every kit component in its states, at the frame's 1280×800. Add new components here.
-  import { Button, Chip, HoldButton, IconButton, Segmented, Sheet, toast } from '../lib/ui';
+  import { Button, Chip, HoldButton, IconButton, Segmented, Sheet, SliderTile, StaleBadge, toast } from '../lib/ui';
 
   let store = $state<'all' | 'grocer' | 'costco'>('all');
   let mode = $state<'heat' | 'cool' | 'off'>('heat');
@@ -8,6 +8,11 @@
   let sheetOpen = $state(false);
   let wideOpen = $state(false);
   let unlocked = $state(0);
+  let tiles = $state([
+    { name: 'Island', on: false, level: 100 },
+    { name: 'Pendants', on: true, level: 40 },
+  ]);
+  let room = $state({ on: true, level: 80 });
 
   const cats = ['Produce', 'Bakery', 'Dairy & Eggs', 'Pantry', 'Frozen'];
   function togglePick(c: string) {
@@ -93,6 +98,38 @@
       </div>
     </div>
   </section>
+
+  <section>
+    <h2 class="label">SliderTile · tap toggles, drag dims</h2>
+    <div class="tiles">
+      {#each tiles as t (t.name)}
+        <SliderTile
+          name={t.name}
+          on={t.on}
+          level={t.level}
+          ontoggle={() => (t.on = !t.on)}
+          onlevel={(l) => { t.on = l > 0; if (l > 0) t.level = l; }} />
+      {/each}
+      <SliderTile name="Pending" on={true} level={60} pending ontoggle={() => {}} onlevel={() => {}} />
+    </div>
+    <div class="tiles wide-tile">
+      <SliderTile
+        size="l"
+        name="Kitchen"
+        on={room.on}
+        level={room.level}
+        ontoggle={() => (room.on = !room.on)}
+        onlevel={(l) => { room.on = l > 0; if (l > 0) room.level = l; }} />
+    </div>
+  </section>
+
+  <section>
+    <h2 class="label">StaleBadge</h2>
+    <div class="row">
+      <StaleBadge status="stale" />
+      <StaleBadge status="mock" />
+    </div>
+  </section>
 </div>
 
 <Sheet bind:open={sheetOpen}>
@@ -120,6 +157,8 @@
   section { margin-top: 28px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
   .dark { background: var(--ink); padding: 12px; border-radius: var(--r); }
+  .tiles { display: grid; grid-template-columns: repeat(4, 220px); gap: 10px; margin-top: 12px; }
+  .wide-tile { grid-template-columns: 450px; }
   .pad { padding: 34px 36px 32px; }
   .sheet-title { font-size: 52px; line-height: 1; margin: 6px 0 22px; }
   p { color: var(--ink-2); }

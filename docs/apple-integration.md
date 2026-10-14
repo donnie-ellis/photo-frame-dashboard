@@ -264,8 +264,9 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - Add a small `api.js` that fetches the three feeds and populates `window.DATA` in place, so
   `views/calendar.js`, `views/shopping.js`, and `views/control.js` keep working unchanged.
 - Keep mock data as the fallback when the API is unreachable (useful for local dev too).
-- `App.setDevice` in `views/control.js` becomes a `PUT /api/lights/{id}` with optimistic update
-  and rollback on error.
+- Lights: the Svelte lights view (`src/views/lights`) uses `/api/lights`, `/api/rooms/{id}`, scene
+  recall and the SSE events, with optimistic updates and rollback on error. `views/control.js`
+  (`App.setDevice`) stays on mock data until it is converted or removed.
 - Remove or hide non-light device tiles (blinds, locks, garage, cameras, climate) until those
   have real sources.
 - Weather: index the 48-hour arrays without wrapping (`App.hourly`), and add `snow`/`storm` icons
