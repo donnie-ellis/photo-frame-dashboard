@@ -31,6 +31,13 @@
     }).join('') + '</div></div>';
   }
 
+  function ring(done, total, size) {
+    var r = size / 2 - 5, c = 2 * Math.PI * r, f = total ? done / total : 0;
+    return '<svg class="ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+      '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" class="ring-bg"/>' +
+      '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" class="ring-fg" stroke-dasharray="' + (c * f) + ' ' + c + '" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')"/></svg>';
+  }
+
   function lane(who, r) {
     var p = App.person(who), list = listFor(who, r);
     var done = list.filter(function (c) { return c.done; }).length;
@@ -40,7 +47,7 @@
       '<header class="ch-head">' + App.avatar(p, 42) +
       '<div><b>' + (who === 'any' ? 'Anyone' : p.name) + '</b>' +
       (kid ? '<span class="ch-stars">' + App.icon('star', 18, 'i--fill') + '<span class="num">' + D.stars[who] + '</span></span>' : '<span class="ch-sub">' + (who === 'any' ? 'Up for grabs' : (list.length ? done + ' of ' + list.length : 'Nothing')) + '</span>') + '</div>' +
-      '<div class="ch-ring">' + App.ring(done, list.length || 1, 46) + '<span class="num">' + (all ? '✓' : list.length ? done + '/' + list.length : '–') + '</span></div>' +
+      '<div class="ch-ring">' + ring(done, list.length || 1, 46) + '<span class="num">' + (all ? '✓' : list.length ? done + '/' + list.length : '–') + '</span></div>' +
       '</header>' +
       '<div class="ch-list">' + (list.length ? list.map(function (c) { return row(c, p); }).join('') : '<div class="ch-none serif"><i>Nothing this ' + (r.id === 'evening' ? 'evening' : r.id === 'morning' ? 'morning' : 'afternoon') + '</i></div>') +
       (all ? '<div class="ch-alldone serif">All done<i>!</i></div>' : '') + '</div>' +

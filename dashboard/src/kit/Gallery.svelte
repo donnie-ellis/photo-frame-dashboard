@@ -1,6 +1,6 @@
 <script lang="ts">
   // Every kit component in its states, at the frame's 1280×800. Add new components here.
-  import { Button, Chip, HoldButton, IconButton, Segmented, Sheet, SliderTile, StaleBadge, toast } from '../lib/ui';
+  import { Button, Chip, HoldButton, IconButton, Segmented, Sheet, SliderTile, StaleBadge, ToggleTile, toast } from '../lib/ui';
 
   let store = $state<'all' | 'grocer' | 'costco'>('all');
   let mode = $state<'heat' | 'cool' | 'off'>('heat');
@@ -13,6 +13,7 @@
     { name: 'Pendants', on: true, level: 40 },
   ]);
   let room = $state({ on: true, level: 80 });
+  let toggles = $state([{ name: 'Island', on: false }, { name: 'Pendants', on: true }]);
 
   const cats = ['Produce', 'Bakery', 'Dairy & Eggs', 'Pantry', 'Frozen'];
   function togglePick(c: string) {
@@ -120,6 +121,16 @@
         level={room.level}
         ontoggle={() => (room.on = !room.on)}
         onlevel={(l) => { room.on = l > 0; if (l > 0) room.level = l; }} />
+    </div>
+  </section>
+
+  <section>
+    <h2 class="label">ToggleTile · tap toggles</h2>
+    <div class="row">
+      {#each toggles as t (t.name)}
+        <ToggleTile name={t.name} on={t.on} ontoggle={() => (t.on = !t.on)} />
+      {/each}
+      <ToggleTile name="Pending" on={true} pending ontoggle={() => {}} />
     </div>
   </section>
 

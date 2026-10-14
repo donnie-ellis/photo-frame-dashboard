@@ -1,6 +1,6 @@
 // Lights feed: rooms, zones, lights and scenes from frame-bridge, with the offline mock as the
 // fallback. Items are replaced whole (never mutated) and writes are optimistic with rollback.
-// window.DATA is not touched: the vanilla Home view keeps its own mock lights.
+// window.DATA is not touched: the vanilla Control view keeps its own mock devices.
 import * as api from '../api/frame-bridge';
 import type { Light, LightPatch, Room, Scene } from '../api/frame-bridge';
 import * as events from '../api/events';
@@ -38,7 +38,7 @@ class LightsStore {
   storedRoom = $state<string | null>(readStoredRoom());
 
   #fresh = new Freshness();
-  #active = false;
+  #users = 0;
   #inflight = new Map<string, number>();
   #unsubs: Array<() => void> = [];
 
@@ -87,10 +87,9 @@ class LightsStore {
     }
   }
 
-  /** Called when the view is shown. */
+  /** Called when a view that shows lights is shown. Counted: Home and Lights can overlap. */
   activate(): void {
-    if (this.#active) return;
-    this.#active = true;
+    if (this.#users++ > 0) return;
     void this.load();
     events.start();
     this.#unsubs = [
@@ -103,10 +102,9 @@ class LightsStore {
     ];
   }
 
-  /** Called when the view is hidden: no stream, polling or timers while off screen. */
+  /** Called when the view is hidden: no stream, polling or timers once no view needs them. */
   deactivate(): void {
-    if (!this.#active) return;
-    this.#active = false;
+    if (this.#users === 0 || --this.#users > 0) return;
     this.#unsubs.forEach((u) => u());
     this.#unsubs = [];
     events.stop();

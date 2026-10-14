@@ -48,6 +48,11 @@ class CalendarStore {
     }
   }
 
+  /** The demo drawer swapped or edited the mock events in place: pick that up. */
+  syncLegacy(): void {
+    this.events = [...window.DATA.events];
+  }
+
   activate(): void {
     if (this.#active) return;
     this.#active = true;

@@ -9,6 +9,7 @@
   // ------------------------------------------------------------ events
   var handlers = {};
   App.on = function (e, fn) { (handlers[e] = handlers[e] || []).push(fn); };
+  App.off = function (e, fn) { handlers[e] = (handlers[e] || []).filter(function (h) { return h !== fn; }); };
   App.emit = function (e, a) { (handlers[e] || []).forEach(function (fn) { fn(a); }); };
 
   // ------------------------------------------------------------ time (demo clock)

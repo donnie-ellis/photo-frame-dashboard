@@ -41,6 +41,11 @@ class ShoppingStore {
     }
   }
 
+  /** The vanilla view edited the mock list in place (add, clear): pick that up. */
+  syncLegacy(): void {
+    this.items = [...window.DATA.groceries];
+  }
+
   /** Check an item off, or put it back. */
   async setDone(id: string, done: boolean): Promise<void> {
     // The mock list is still edited in place by the vanilla view (add, clear), so start from DATA.
