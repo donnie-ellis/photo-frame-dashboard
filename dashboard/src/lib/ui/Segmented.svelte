@@ -53,7 +53,7 @@
 
   .segmented--light { background: var(--paper-2); }
   .segmented--light button { color: var(--ink-2); }
-  .segmented--light button.on { background: var(--ink); color: var(--paper); }
+  .segmented--light button.on { background: var(--accent); color: var(--accent-ink); }
 
   .segmented--dark { background: rgba(255, 255, 255, 0.1); }
   .segmented--dark button { color: rgba(255, 255, 255, 0.75); }

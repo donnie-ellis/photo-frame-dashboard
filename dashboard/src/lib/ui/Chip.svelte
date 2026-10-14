@@ -34,6 +34,6 @@
     transition: transform 0.15s var(--ease);
   }
   .ghost { background: transparent; border: 2px solid var(--line); }
-  .on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .choice:global(.is-pressed) { transform: scale(0.95); transition-duration: 0s; }
 </style>

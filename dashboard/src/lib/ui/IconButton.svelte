@@ -41,7 +41,7 @@
   .ib--m { width: var(--tap); height: var(--tap); }
   .ib--l { width: 72px; height: 72px; }
   .ib--outline { border: 2px solid var(--line); }
-  .ib--solid { background: var(--ink); color: var(--paper); }
+  .ib--solid { background: var(--accent); color: var(--accent-ink); }
   .ib--soft { background: rgba(0, 0, 0, 0.08); }
   .ib:global(.is-pressed) { transform: scale(0.92); transition-duration: 0s; }
   .ib--outline:global(.is-pressed) { background: var(--paper-2); }

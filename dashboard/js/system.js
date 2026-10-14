@@ -115,8 +115,10 @@
   };
 
   // ------------------------------------------------------------ demo drawer
+  var ACCENTS = [['ink', 'Ink'], ['steel', 'Steel blue'], ['ember', 'Ember'], ['sage', 'Sage']];
   function demoHTML() {
     var t = App.now();
+    var cur = document.documentElement.getAttribute('data-accent') || 'ink';
     return '<div class="demo-panel">' +
       '<div class="demo-head"><div><div class="label label--light">Prototype</div><h2 class="serif">Demo controls</h2></div><button class="demo-x" data-demo-close>' + App.icon('x', 28) + '</button></div>' +
       '<div class="demo-sec"><div class="label label--light">Time of day · now ' + App.fmt.time(t) + '</div><div class="demo-grid">' +
@@ -128,6 +130,10 @@
       '<div class="demo-sec"><div class="label label--light">Calendar data</div><div class="demo-grid">' +
       ['normal', 'empty', 'busy'].map(function (m) {
         return '<button data-cal="' + m + '" class="' + (App.calMode === m ? 'is-on' : '') + '">' + { normal: 'Normal day', empty: 'Empty day', busy: 'Overloaded' }[m] + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="demo-sec"><div class="label label--light">Accent</div><div class="demo-grid">' +
+      ACCENTS.map(function (a) {
+        return '<button data-accent-pick="' + a[0] + '" class="' + (cur === a[0] ? 'is-on' : '') + '" aria-pressed="' + (cur === a[0]) + '"><i class="demo-swatch" data-accent="' + a[0] + '"></i>' + a[1] + '</button>';
       }).join('') + '</div></div>' +
       '<p class="demo-note">Keyboard: <b>D</b> demo · <b>A</b> ambient · <b>N</b> night · <b>1–7</b> views</p>' +
       '</div>';
@@ -143,6 +149,12 @@
     var b = e.target.closest('button');
     if (!b) { if (e.target === $('#demo')) closeDemo(); return; }
     if (b.hasAttribute('data-demo-close')) return closeDemo();
+    if (b.dataset.accentPick) {
+      document.documentElement.setAttribute('data-accent', b.dataset.accentPick);
+      try { localStorage.setItem('ui.accent', b.dataset.accentPick); } catch (err) {}
+      App.openDemo();
+      return;
+    }
     if (b.dataset.time) {
       if (b.dataset.time === 'real') App.setTime(null);
       else { var p = b.dataset.time.split(':'); App.setTime(+p[0], +p[1]); }
