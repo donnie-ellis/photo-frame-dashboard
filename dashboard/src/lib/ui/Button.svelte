@@ -40,7 +40,7 @@
     text-transform: uppercase;
     transition: transform 0.15s var(--ease);
   }
-  .button--solid { background: var(--ink); color: var(--paper); }
+  .button--solid { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .button--ghost { background: transparent; }
   .button:global(.is-pressed) { transform: scale(0.96); transition-duration: 0s; }
   .button:disabled { opacity: 0.4; }

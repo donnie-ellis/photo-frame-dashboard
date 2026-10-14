@@ -7,6 +7,10 @@
   --ink: #111111;
   --ink-rgb: 17 17 17;
   --ink-2: #3B3934;
+  /* accent: selected + primary states. Default is ink; presets below. */
+  --accent: var(--ink);
+  --accent-rgb: var(--ink-rgb);
+  --accent-ink: var(--paper);
   --mute: #7A756B;
   --line: #D6CFC0;
 
@@ -45,4 +49,20 @@
   --tap: 64px;
   --ease: cubic-bezier(.2, .8, .2, 1);
   --spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* Accent presets. Attribute-scoped (not :root only) so drawer swatches show their own colour.
+   An unknown id matches nothing and falls back to the ink default.
+   Night values are for #25 (not wired up yet). Contrast is against --paper (day). */
+[data-accent="ink"] { /* night #F2DFC2; day 16.3:1 */
+  --accent: #111111; --accent-rgb: 17 17 17; --accent-ink: var(--paper);
+}
+[data-accent="steel"] { /* night #86AACB; day 5.3:1 */
+  --accent: #3E6585; --accent-rgb: 62 101 133; --accent-ink: #FFFFFF;
+}
+[data-accent="ember"] { /* night #F08A5D; day 4.5:1 */
+  --accent: #C2410C; --accent-rgb: 194 65 12; --accent-ink: #FFFFFF;
+}
+[data-accent="sage"] { /* night #9DBF9A; day 5.1:1 */
+  --accent: #4D6B4F; --accent-rgb: 77 107 79; --accent-ink: #FFFFFF;
 }
