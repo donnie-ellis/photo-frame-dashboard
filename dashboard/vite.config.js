@@ -11,5 +11,21 @@ export default defineConfig({
     target: 'chrome106',
     cssTarget: 'chrome61',
   },
-  server: { host: true },
+  // Dev only: send /api and /healthz to Prism (mock-service skill) or the real bridge.
+  // API_TARGET=http://localhost:4010 FRAME_TOKEN=dev npm run dev
+  server: {
+    host: true,
+    proxy: process.env.API_TARGET
+      ? Object.fromEntries(
+          ['/api', '/healthz'].map((path) => [
+            path,
+            {
+              target: process.env.API_TARGET,
+              changeOrigin: true,
+              headers: process.env.FRAME_TOKEN ? { Cookie: 'frame_token=' + process.env.FRAME_TOKEN } : {},
+            },
+          ]),
+        )
+      : {},
+  },
 });
