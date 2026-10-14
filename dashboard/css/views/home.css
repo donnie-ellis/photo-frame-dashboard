@@ -29,7 +29,7 @@
 .h-hr-l { font-size: var(--fs-min); font-weight: 700; color: var(--mute); text-transform: uppercase; }
 .h-hr-i { height: 26px; display: grid; place-items: center; }
 .h-hr b { font-weight: 800; font-stretch: 70%; }
-.h-hr.is-wet .h-hr-i { color: #1F6FEB; }
+.h-hr.is-wet .h-hr-i { color: var(--wet); }
 
 /* ---- presence */
 .h-presence { grid-column: 10 / 13; display: flex; flex-direction: column; justify-content: space-between; border-bottom: 3px solid var(--ink); padding: 2px 0 10px; }
@@ -103,5 +103,5 @@
 .h-st-row { display: flex; align-items: center; gap: 8px; font-size: 17px; min-height: 30px; }
 .h-st-row b { font-size: 24px; }
 .h-st-row span { color: var(--ink-2); }
-.h-st-row.is-warn { color: #B45F00; font-weight: 800; }
+.h-st-row.is-warn { color: var(--warn-ink); font-weight: 800; }
 .h-st-row.is-warn span { color: inherit; }

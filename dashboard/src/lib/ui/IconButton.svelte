@@ -42,7 +42,7 @@
   .ib--l { width: 72px; height: 72px; }
   .ib--outline { border: 2px solid var(--line); }
   .ib--solid { background: var(--accent); color: var(--accent-ink); }
-  .ib--soft { background: rgba(0, 0, 0, 0.08); }
+  .ib--soft { background: rgb(var(--tint-rgb) / 0.08); }
   .ib:global(.is-pressed) { transform: scale(0.92); transition-duration: 0s; }
   .ib--outline:global(.is-pressed) { background: var(--paper-2); }
   .ib:disabled { opacity: 0.4; }

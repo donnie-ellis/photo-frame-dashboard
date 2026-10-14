@@ -49,7 +49,7 @@
     align-items: center;
     gap: 14px;
     background: var(--ink);
-    color: #fff;
+    color: var(--on-ink);
     border-radius: 20px;
     font-size: var(--fs-body);
   }
@@ -62,12 +62,12 @@
     align-items: center;
     gap: 8px;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.14);
+    background: rgb(var(--on-ink-rgb) / 0.14);
     font-size: 17px;
     font-weight: 800;
     font-stretch: 75%;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
-  .undo:global(.is-pressed) { background: rgba(255, 255, 255, 0.28); }
+  .undo:global(.is-pressed) { background: rgb(var(--on-ink-rgb) / 0.28); }
 </style>

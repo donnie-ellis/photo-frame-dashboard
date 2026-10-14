@@ -86,7 +86,7 @@
     transform: scaleX(0);
     transform-origin: left center;
   }
-  .hold--solid .fill { background: rgba(255, 255, 255, 0.22); }
-  .hold--light .fill { background: rgba(0, 0, 0, 0.12); }
+  .hold--solid .fill { background: rgb(var(--on-ink-rgb) / 0.22); }
+  .hold--light .fill { background: rgb(var(--tint-rgb) / 0.12); }
   .holding .fill { transform: scaleX(1); transition: transform var(--hold) linear; }
 </style>

@@ -49,7 +49,7 @@
 .lanes { position: absolute; left: 64px; right: 0; top: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
 .lanes--3 { grid-template-columns: repeat(3, 1fr); }
 .lane { position: relative; border-left: 1px solid var(--line); }
-.lane.is-today { background: rgba(17, 17, 17, .03); }
+.lane.is-today { background: rgb(var(--ink-rgb) / .03); }
 .lane-fam { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
 .lane-fam .ev { pointer-events: auto; }
 
@@ -74,7 +74,7 @@
 .ev.is-half .ev-title { padding-right: 0; }
 .ev.is-past { opacity: .38; }
 .ev.is-now { box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--c); z-index: 2; }
-.ev.is-family { background: var(--ink); color: #fff; }
+.ev.is-family { background: var(--ink); color: var(--on-ink); }
 .ev-with { position: absolute; right: 8px; top: 9px; }
 .ev-with .dots i { box-shadow: 0 0 0 2px rgba(255, 255, 255, .9); }
 .ev-travel {
