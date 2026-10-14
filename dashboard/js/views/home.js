@@ -29,10 +29,9 @@
 
   function presence() {
     return D.people.map(function (p) {
-      var sub = p.home ? 'Home' : (p.eta ? '<b>ETA ' + p.eta + ' min</b>' : p.status);
-      return '<div class="h-who' + (p.home ? ' is-home' : '') + '" style="' + App.pstyle(p) + '">' +
-        App.avatar(p, 36, p.home ? '' : 'avatar--away') +
-        '<span><b>' + p.name + '</b><small>' + sub + '</small></span></div>';
+      return '<div class="h-who" style="' + App.pstyle(p) + '">' +
+        App.avatar(p, 36) +
+        '<span><b>' + p.name + '</b></span></div>';
     }).join('');
   }
 

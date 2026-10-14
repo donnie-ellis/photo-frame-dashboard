@@ -36,9 +36,6 @@
 .h-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .h-who > span:not(.avatar) { flex: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
 .h-who b { font-size: 18px; font-weight: 800; white-space: nowrap; flex: none; }
-.h-who small { font-size: var(--fs-min); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.h-who small b { font-size: var(--fs-min); color: var(--c); }
-.h-who .avatar--away { background: var(--paper); }
 
 /* ---- main column */
 .h-main { grid-column: 1 / 8; display: grid; grid-template-rows: 232px 1fr; gap: 16px; min-height: 0; }
