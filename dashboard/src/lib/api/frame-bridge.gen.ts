@@ -237,12 +237,15 @@ export interface paths {
          *     | `light` | `Light` | Replace that light in place |
          *     | `room` | `Room` | Replace that room or zone in place |
          *     | `scene` | `Scene` | Replace that scene in place |
+         *     | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
          *     | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
          *     | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
          *
          *     The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
          *     a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
          *     Changes are debounced: one `calendar` notice per burst of `EKEventStoreChanged`.
+         *     `light`, `room` and `scene` are in-place updates only; structural changes arrive as one
+         *     debounced `lights` notice.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -424,7 +427,7 @@ export interface components {
         /** @description One SSE message: `event` is the SSE `event:` line, `data` is the JSON on the `data:` line. */
         ServerEvent: {
             /** @enum {string} */
-            event: "calendar" | "shopping" | "weather" | "photos";
+            event: "calendar" | "shopping" | "weather" | "photos" | "lights";
             data: components["schemas"]["ChangeNotice"];
         } | {
             /** @constant */
@@ -439,7 +442,7 @@ export interface components {
             event: "scene";
             data: components["schemas"]["Scene"];
         };
-        /** @description `data` of `calendar`, `shopping`, `weather` and `photos` events: something changed, re-fetch. */
+        /** @description `data` of `calendar`, `shopping`, `weather`, `photos` and `lights` events: something changed, re-fetch. */
         ChangeNotice: {
             /** Format: date-time */
             changedAt: string;
