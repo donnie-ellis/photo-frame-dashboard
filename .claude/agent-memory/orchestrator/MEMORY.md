@@ -1,0 +1,1 @@
+- [Tester lockfile drift](tester-lockfile-drift.md) — tester npm runs can dirty package-lock.json; user had it discarded on #30
