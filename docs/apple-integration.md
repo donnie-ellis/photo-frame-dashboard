@@ -2,7 +2,7 @@
 
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
-v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14.
+v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -95,7 +95,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.4.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.6.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -110,7 +110,7 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/weather` | Today's high/low and 48 hourly temperature, condition and rain-chance values |
 | `GET /api/photos` | The "Frame" album (sampled) plus "On this day" photos |
 | `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
-| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos` (re-fetch notices), `light`, `room`, `scene` (full objects) |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene` (full objects) |
 | `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
@@ -175,6 +175,10 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   `EKReminder.isCompleted`. The bridge sets it, calls `EKEventStore.save(_:commit:)`, and returns the
   updated `ShoppingItem`. It then sends a `shopping` change notice so other frames re-fetch.
   `done: false` un-checks, for undo. Ids must be percent-encoded in the path.
+- **Lights change notice (v0.6.0, additive).** In-place changes arrive as `light`/`room`/`scene`.
+  Anything structural arrives as one debounced `lights` ChangeNotice, and the dashboard re-fetches
+  `/api/lights`: a light, room/zone or scene added or deleted, or a light leaving every kept room.
+  Removals show up live.
 - **Weather (v0.3.0) keeps the dashboard's shape** (`hi`, `lo`, and the parallel arrays `t`, `c`,
   `p`), but has 48 hours instead of 24 and a `start` time. The mock's 24 entries wrap around
   midnight, which shows today's early hours as "next" late at night. `feels`, `humidity` and `wind`
@@ -222,7 +226,10 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   The bridge uses a self-signed cert: pin it instead of disabling verification.
 - State: `resource/light`, `resource/room`, `resource/grouped_light`. Toggle with
   `PUT resource/light/{id}` body `{"on":{"on":true},"dimming":{"brightness":60}}`.
-- Live updates: `GET /eventstream/clip/v2` (SSE). Relay into `/api/events`.
+- Live updates: `GET /eventstream/clip/v2` (SSE). Relay into `/api/events`. Hue `update` events
+  relay as `light`/`room`/`scene`. Hue add/delete events, and membership changes that move a light
+  out of every kept room, become one debounced `lights` notice. The bridge sends it only when the
+  set of light/room/scene ids changes after the throttled full read.
 - Give the bridge a DHCP reservation.
 
 ### Photos (PhotoKit)

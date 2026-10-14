@@ -97,6 +97,7 @@ class LightsStore {
       events.on('light', (l: Light) => (this.devices = replaceById(this.devices, l))),
       events.on('room', (r: Room) => (this.rooms = replaceById(this.rooms, r))),
       events.on('scene', (s: Scene) => (this.scenes = replaceById(this.scenes, s))),
+      events.on('lights', () => void this.load()),
       events.onPoll(() => void this.load()),
       watchHealth('lights', (f) => this.#fresh.applyHealth(f)),
     ];

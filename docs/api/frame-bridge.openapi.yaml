@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.5.0
+  version: 0.6.0
   summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -356,12 +356,15 @@ paths:
         | `light` | `Light` | Replace that light in place |
         | `room` | `Room` | Replace that room or zone in place |
         | `scene` | `Scene` | Replace that scene in place |
+        | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
         | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
         | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
 
         The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
         a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
         Changes are debounced: one `calendar` notice per burst of `EKEventStoreChanged`.
+        `light`, `room` and `scene` are in-place updates only; structural changes arrive as one
+        debounced `lights` notice.
       responses:
         '200':
           description: The event stream. Stays open.
@@ -707,7 +710,7 @@ components:
         - type: object
           required: [event, data]
           properties:
-            event: { type: string, enum: [calendar, shopping, weather, photos] }
+            event: { type: string, enum: [calendar, shopping, weather, photos, lights] }
             data: { $ref: '#/components/schemas/ChangeNotice' }
         - type: object
           required: [event, data]
@@ -728,7 +731,7 @@ components:
     ChangeNotice:
       type: object
       required: [changedAt]
-      description: '`data` of `calendar`, `shopping`, `weather` and `photos` events: something changed, re-fetch.'
+      description: '`data` of `calendar`, `shopping`, `weather`, `photos` and `lights` events: something changed, re-fetch.'
       properties:
         changedAt:
           type: string
