@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.4.0
+  version: 0.5.0
   summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -37,7 +37,9 @@ tags:
   - name: calendar
     description: Apple Calendar via EventKit. Read only.
   - name: shopping
-    description: Apple Reminders "Shopping" list via EventKit. Read only in this version.
+    description: |
+      Apple Reminders "Shopping" list via EventKit. Items can be checked off and un-checked
+      (`done` is writable through `setShoppingItem`). Nothing else on shopping is writable.
   - name: lights
     description: Philips Hue via the Hue Bridge CLIP v2 API. Lights, rooms, zones and scenes.
   - name: weather
@@ -104,7 +106,7 @@ paths:
       description: |
         Open items from the Reminders "Shopping" list, plus items completed in the last few hours
         (`done: true`) so the dashboard can show them struck through. Also returns the stores, so
-        every `store` id on an item resolves.
+        every `store` id on an item resolves. `setShoppingItem` writes `done`.
       responses:
         '200':
           description: The shopping list.
@@ -121,6 +123,35 @@ paths:
                   - { id: 'x-apple-reminder://0003', name: Paper towels, done: false, qty: 1, cat: Household, store: costco }
                   - { id: 'x-apple-reminder://0004', name: Butter, done: true, qty: 1, cat: Dairy & Eggs, store: grocer }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/shopping/{id}:
+    patch:
+      operationId: setShoppingItem
+      tags: [shopping]
+      summary: Check an item off or un-check it
+      description: |
+        Sets `EKReminder.isCompleted` from `done`, then saves. `done: false` un-checks the item,
+        which the dashboard's undo uses. After the save the bridge sends a `shopping`
+        `ChangeNotice` on `/api/events`.
+      parameters:
+        - $ref: '#/components/parameters/ShoppingItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShoppingItemPatch' }
+            example: { done: true }
+      responses:
+        '200':
+          description: The item after the change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShoppingItem' }
+              example: { id: 'x-apple-reminder://0001', name: Bananas, note: 'Bunch, not too ripe', done: true, qty: 1, cat: Produce, store: grocer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
   /api/lights:
@@ -407,6 +438,12 @@ components:
       required: true
       description: A `Scene.id`.
       schema: { type: string }
+    ShoppingItemId:
+      name: id
+      in: path
+      required: true
+      description: A `ShoppingItem.id`. Percent-encode it in the path, because the ids contain `://` and `/`.
+      schema: { type: string }
     LightId:
       name: id
       in: path
@@ -553,6 +590,15 @@ components:
         store:
           type: string
           description: A `Store.id` from the same response.
+
+    ShoppingItemPatch:
+      type: object
+      required: [done]
+      additionalProperties: false
+      properties:
+        done:
+          type: boolean
+          description: "`true` checks the item off, `false` un-checks it."
 
     LightsState:
       type: object

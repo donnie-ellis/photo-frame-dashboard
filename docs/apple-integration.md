@@ -2,14 +2,14 @@
 
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
-v0.4.0 (room and zone control, scenes) 2026-10-13.
+v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
 | Feed | Source | Access | Replaces |
 | --- | --- | --- | --- |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
-| Shopping list | Apple Reminders, "Shopping" list | Read (check-off later, optional) | `DATA.groceries`, `DATA.stores` |
+| Shopping list | Apple Reminders, "Shopping" list | Read + check off | `DATA.groceries`, `DATA.stores` |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
 | Weather | Open-Meteo | Read only | `DATA.weather` |
 | Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
@@ -102,6 +102,7 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | --- | --- |
 | `GET /api/calendar?from&to` | Events overlapping a range (max 120 days), recurring events expanded |
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
+| `PATCH /api/shopping/{id}` | `{ done }`: check off or un-check a reminder |
 | `GET /api/lights` | Hue rooms and zones, lights, scenes |
 | `PUT /api/lights/{id}` | `{ on?, level? }` |
 | `PUT /api/rooms/{id}` | Same body, for a room or zone (one Hue `grouped_light` request) |
@@ -169,7 +170,11 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   [OpenHue spec](https://github.com/openhue/openhue-api) is only a reference for models.
 - **Auth (v0.2.0):** a per-frame `frame_token` cookie, checked by frame-bridge itself. See
   [Auth](#auth-per-frame-tokens).
-- **Read only for calendar and shopping.** Writes are separate, later changes.
+- **Calendar is read only.** Writes are separate, later changes.
+- **Shopping check-off (v0.5.0, additive):** `done` is the only writable field and maps to
+  `EKReminder.isCompleted`. The bridge sets it, calls `EKEventStore.save(_:commit:)`, and returns the
+  updated `ShoppingItem`. It then sends a `shopping` change notice so other frames re-fetch.
+  `done: false` un-checks, for undo. Ids must be percent-encoded in the path.
 - **Weather (v0.3.0) keeps the dashboard's shape** (`hi`, `lo`, and the parallel arrays `t`, `c`,
   `p`), but has 48 hours instead of 24 and a `start` time. The mock's 24 entries wrap around
   midnight, which shows today's early hours as "next" late at night. `feels`, `humidity` and `wind`
@@ -203,8 +208,9 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   Calendars and Reminders are expected to match (frame-bridge #23).
 - Intel Mac minis top out at macOS 15 Sequoia. Fine for these APIs.
 - Subscribe to `EKEventStoreChanged` and re-query; debounce, since it fires in bursts.
-- Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes (check-off)
-  are a later, explicit feature.
+- Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes are limited to
+  `isCompleted` on items in the Shopping list. It needs full Reminders access (already requested with
+  `requestFullAccessToReminders`). Never create or delete reminders.
 - HTTP framework: Hummingbird (lighter) or Vapor.
 
 ### Hue Bridge (CLIP v2)
@@ -290,7 +296,7 @@ per-phone token.
 2. **Lights:** Hue key setup, `/api/lights`, toggles, SSE relay, wire `control.js`.
 3. **Calendar:** EventKit read, calendar→person map, wire `calendar.js`, hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
-   wire `shopping.js`.
+   check-off write (`PATCH /api/shopping/{id}`), wire `shopping.js`.
 5. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
 6. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
    slideshow.
@@ -304,7 +310,6 @@ per-phone token.
 - Category/store strategy for shopping items. The contract assumes the server-side keyword map;
   the list of stores is still open.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
-- Check items off from the frame? (Needs Reminders write access; easy with EventKit.)
 - Weather units: °C or °F (frame-bridge config).
 
 ## Breaking changes

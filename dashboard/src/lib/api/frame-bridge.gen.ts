@@ -36,7 +36,7 @@ export interface paths {
          * Get the shopping list
          * @description Open items from the Reminders "Shopping" list, plus items completed in the last few hours
          *     (`done: true`) so the dashboard can show them struck through. Also returns the stores, so
-         *     every `store` id on an item resolves.
+         *     every `store` id on an item resolves. `setShoppingItem` writes `done`.
          */
         get: operations["getShoppingList"];
         put?: never;
@@ -45,6 +45,28 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/shopping/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Check an item off or un-check it
+         * @description Sets `EKReminder.isCompleted` from `done`, then saves. `done: false` un-checks the item,
+         *     which the dashboard's undo uses. After the save the bridge sends a `shopping`
+         *     `ChangeNotice` on `/api/events`.
+         */
+        patch: operations["setShoppingItem"];
         trace?: never;
     };
     "/api/lights": {
@@ -335,6 +357,10 @@ export interface components {
             /** @description A `Store.id` from the same response. */
             store: string;
         };
+        ShoppingItemPatch: {
+            /** @description `true` checks the item off, `false` un-checks it. */
+            done: boolean;
+        };
         LightsState: {
             /** @description Hue rooms and zones, told apart by `kind`. */
             rooms: components["schemas"]["Room"][];
@@ -583,6 +609,8 @@ export interface components {
         RoomId: string;
         /** @description A `Scene.id`. */
         SceneId: string;
+        /** @description A `ShoppingItem.id`. Percent-encode it in the path, because the ids contain `://` and `/`. */
+        ShoppingItemId: string;
         /** @description A `Light.id`. */
         LightId: string;
     };
@@ -721,6 +749,53 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
+    setShoppingItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A `ShoppingItem.id`. Percent-encode it in the path, because the ids contain `://` and `/`. */
+                id: components["parameters"]["ShoppingItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "done": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["ShoppingItemPatch"];
+            };
+        };
+        responses: {
+            /** @description The item after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "x-apple-reminder://0001",
+                     *       "name": "Bananas",
+                     *       "note": "Bunch, not too ripe",
+                     *       "done": true,
+                     *       "qty": 1,
+                     *       "cat": "Produce",
+                     *       "store": "grocer"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ShoppingItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
         };
     };
