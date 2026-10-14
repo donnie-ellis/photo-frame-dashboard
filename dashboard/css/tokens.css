@@ -28,6 +28,9 @@
      old literals; the nightdash block below overrides them. */
   --on-ink: #FFFFFF;
   --on-ink-rgb: 255 255 255;
+  /* over photos: same in both palettes, like the slideshow overlays */
+  --photo-scrim: rgba(0, 0, 0, 0.5);
+  --photo-on: rgb(255 255 255);
   --tint-rgb: 0 0 0;
   --warn-ink: #B45F00;
   --warn-ink-2: #8A4A00;

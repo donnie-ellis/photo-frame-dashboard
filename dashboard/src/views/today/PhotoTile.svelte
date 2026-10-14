@@ -61,8 +61,8 @@
     right: 0;
     bottom: 0;
     padding: 12px 18px;
-    background: rgba(0, 0, 0, 0.5);
-    color: #fff;
+    background: var(--photo-scrim);
+    color: var(--photo-on);
     display: flex;
     justify-content: space-between;
     align-items: baseline;
