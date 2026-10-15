@@ -14,6 +14,7 @@ import Shopping from './views/shopping/Shopping.svelte';
 import Today from './views/today/Today.svelte';
 import Photos from './views/photos/Photos.svelte';
 import { mountAmbientSlideshow } from './views/photos/ambient.svelte';
+import { startUpdateWatch } from './lib/update-watch';
 
 registerView('home', Today);
 registerView('control', Control);
@@ -25,6 +26,7 @@ exposeFeeds();
 // These feeds feed several views (and the ambient screen), so they stay live for the page lifetime.
 for (const feed of [calendar, shopping, weather, photos]) feed.activate();
 mount(Toaster, { target: document.getElementById('stage')! });
+startUpdateWatch();
 
 // Long-press fires contextmenu on Android. There's no menu to show on the frame, and letting it
 // through can cancel the pointer mid-gesture (App.hold: rail clock, unlock, water valve).
