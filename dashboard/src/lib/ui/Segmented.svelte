@@ -59,7 +59,7 @@
   .segmented--dark button { color: rgb(var(--on-ink-rgb) / 0.75); }
   .segmented--dark button.on { background: var(--paper); color: var(--ink); }
 
-  .segmented--glass { background: rgba(0, 0, 0, 0.35); }
-  .segmented--glass button { color: rgba(255, 255, 255, 0.85); }
-  .segmented--glass button.on { background: var(--on-ink); color: var(--ink); }
+  .segmented--glass { background: var(--photo-seg); }
+  .segmented--glass button { color: var(--photo-on-2); }
+  .segmented--glass button.on { background: var(--photo-on); color: var(--photo-ink); }
 </style>
