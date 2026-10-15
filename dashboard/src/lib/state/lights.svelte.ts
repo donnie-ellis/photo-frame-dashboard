@@ -2,7 +2,7 @@
 // fallback. Items are replaced whole (never mutated) and writes are optimistic with rollback.
 // window.DATA is not touched (no vanilla view reads lights).
 import * as api from '../api/frame-bridge';
-import type { Light, LightPatch, Room, Scene } from '../api/frame-bridge';
+import type { Light, LightPatch, Room, RoomPatch, Scene } from '../api/frame-bridge';
 import * as events from '../api/events';
 import { toast } from '../ui';
 import { buildMock } from './lights.mock';
@@ -134,7 +134,7 @@ class LightsStore {
     });
   }
 
-  async setRoom(id: string, patch: LightPatch): Promise<void> {
+  async setRoom(id: string, patch: RoomPatch): Promise<void> {
     const prev = this.rooms.find((r) => r.id === id);
     if (!prev) return;
     const snap = this.#snapshot(prev.lights, [id]);
@@ -190,8 +190,16 @@ class LightsStore {
 
   #setLocalLight(l: Light, patch: LightPatch): void {
     const level = patch.level ?? l.level;
-    const on = patch.on ?? (patch.level !== undefined ? true : l.on);
-    this.devices = replaceById(this.devices, { ...l, on, level });
+    const lights = patch.temp !== undefined || patch.color !== undefined;
+    const on = patch.on ?? (patch.level !== undefined || lights ? true : l.on);
+    const next: Light = { ...l, on, level };
+    if (patch.color !== undefined) {
+      next.color = patch.color;
+      delete next.temp;
+    } else if (patch.temp !== undefined) {
+      next.temp = patch.temp;
+    }
+    this.devices = replaceById(this.devices, next);
   }
 
   /** Recompute `on` for the rooms and zones holding these lights, except one already set. */

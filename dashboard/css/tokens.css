@@ -36,6 +36,22 @@
   --warn-ink-2: #8A4A00;
   --wet: #1F6FEB;
   --tile-on: #FFF1D0;
+  /* Colours sent to a bulb: the same in night mode, so only here and never overridden. */
+  --swatch-red: #E5352B;
+  --swatch-orange: #FF7A1A;
+  --swatch-amber: #FFB020;
+  --swatch-green: #2FB344;
+  --swatch-teal: #17B3A8;
+  --swatch-blue: #2F6FED;
+  --swatch-purple: #8A4FE0;
+  --swatch-pink: #FF5FA2;
+  /* Tints for the white presets (Kelvin), the same in night mode. */
+  --white-2200: #FFB46B;
+  --white-2700: #FFC98E;
+  --white-3000: #FFD7A8;
+  --white-4000: #FFEBD6;
+  --white-5000: #FFF6EE;
+  --white-6500: #E4ECFF;
   --blind-fill: #BFD6F2;
   --blind-on: #E4EEFA;
   --field: #FFFFFF;

@@ -8,12 +8,15 @@
     icon = 'bulb',
     on,
     pending = false,
+    color,
     ontoggle,
   }: {
     name: string;
     icon?: string;
     on: boolean;
     pending?: boolean;
+    /** A small dot showing the light's colour (a CSS colour). */
+    color?: string;
     ontoggle: () => void;
   } = $props();
 </script>
@@ -26,6 +29,7 @@
   onclick={ontoggle}
   {@attach pressable}>
   <Icon name={icon} size={28} />
+  {#if color}<span class="tgl-dot" style:background={color}></span>{/if}
   <span class="tgl-name">{name}</span>
 </button>
 
@@ -47,6 +51,13 @@
   .tgl--on { background: var(--tile-on); color: var(--ink); border-color: var(--ink); }
   .tgl--pending { opacity: 0.6; }
   .tgl:global(.is-pressed) { transform: scale(0.97); transition-duration: 0s; }
+  .tgl-dot {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--ink);
+  }
   .tgl-name {
     font-size: var(--fs-body);
     font-weight: 800;

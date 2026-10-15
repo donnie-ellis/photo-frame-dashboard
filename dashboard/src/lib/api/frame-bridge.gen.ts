@@ -95,10 +95,17 @@ export interface paths {
         };
         get?: never;
         /**
-         * Turn a light on or off, or dim it
-         * @description Send `on`, `level`, or both. `{ "on": true }` alone restores the light's last level.
-         *     Setting `level` on a light that is off turns it on. The dashboard turns lights off with
-         *     `{ "on": false }`, never `level: 0`.
+         * Turn a light on or off, dim it, or change its white temperature or colour
+         * @description Send any of `on`, `level`, `temp` and `color`. `{ "on": true }` alone restores the light's
+         *     last level. Setting `level` on a light that is off turns it on. The dashboard turns lights
+         *     off with `{ "on": false }`, never `level: 0`.
+         *
+         *     Setting `temp` or `color` also turns the light on. `temp` (Kelvin) is clamped to the
+         *     light's `tempRange` and puts the light in white mode, where `color` stays as the bridge's
+         *     approximation. `color` (`#rrggbb`) leaves white mode, so the response omits `temp`. Sending
+         *     `temp` and `color` in the same request is a 400 `Error`: they are different Hue modes.
+         *     `temp` is only valid for a light with `tempRange` and `color` only for a light with
+         *     `color`; otherwise the bridge answers 400.
          */
         put: operations["setLight"];
         post?: never;
@@ -118,7 +125,8 @@ export interface paths {
         get?: never;
         /**
          * Turn a room or zone on or off, or dim it
-         * @description Same body and rules as `setLight`, applied to every light in the room or zone.
+         * @description Same `on` and `level` rules as `setLight`, applied to every light in the room or zone.
+         *     Rooms take no `temp` or `color`.
          *     `{ "on": false }` turns the whole group off. frame-bridge sends one Hue `grouped_light`
          *     request, not one per light, so the bridge's rate limit isn't hit. Works for zones too.
          */
@@ -419,8 +427,38 @@ export interface components {
              *     light is off, so turning it on restores it. Lights without dimming report 100.
              */
             level: number;
+            /**
+             * @description White colour temperature in Kelvin (`1e6 / mirek`, rounded). Present only while the
+             *     light is in white mode (Hue `mirek_valid`). Omitted in colour mode and on lights
+             *     without colour temperature.
+             */
+            temp?: number;
+            /**
+             * @description Kelvin range the light supports (from Hue `mirek_schema`). Present on every light that
+             *     supports white temperature; the dashboard shows the warm-cool slider and white presets
+             *     only then.
+             */
+            tempRange?: {
+                min: number;
+                max: number;
+            };
+            /**
+             * @description Current colour as lowercase sRGB `#rrggbb`, from Hue `xy` and brightness. Present on
+             *     every colour light, even in white mode, where it is the bridge's approximation. The
+             *     dashboard shows the colour swatches and a colour dot only then.
+             */
+            color?: string;
         };
+        /** @description `temp` and `color` must not be sent together (400). Either one turns the light on. */
         LightPatch: {
+            on?: boolean;
+            level?: number;
+            /** @description Kelvin. The bridge clamps it to the light's `tempRange`. */
+            temp?: number;
+            /** @description Lowercase sRGB `#rrggbb`. */
+            color?: string;
+        };
+        RoomPatch: {
             on?: boolean;
             level?: number;
         };
@@ -848,7 +886,13 @@ export interface operations {
                      *           "type": "light",
                      *           "name": "Pendants",
                      *           "on": true,
-                     *           "level": 80
+                     *           "level": 80,
+                     *           "temp": 2700,
+                     *           "tempRange": {
+                     *             "min": 2000,
+                     *             "max": 6500
+                     *           },
+                     *           "color": "#ffb36b"
                      *         },
                      *         {
                      *           "id": "6d2b7c11-0000-4000-8000-000000000002",
@@ -895,12 +939,6 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "on": true,
-                 *       "level": 60
-                 *     }
-                 */
                 "application/json": components["schemas"]["LightPatch"];
             };
         };
@@ -918,7 +956,13 @@ export interface operations {
                      *       "type": "light",
                      *       "name": "Pendants",
                      *       "on": true,
-                     *       "level": 60
+                     *       "level": 60,
+                     *       "temp": 2700,
+                     *       "tempRange": {
+                     *         "min": 2000,
+                     *         "max": 6500
+                     *       },
+                     *       "color": "#ffb36b"
                      *     }
                      */
                     "application/json": components["schemas"]["Light"];
@@ -947,7 +991,7 @@ export interface operations {
                  *       "on": false
                  *     }
                  */
-                "application/json": components["schemas"]["LightPatch"];
+                "application/json": components["schemas"]["RoomPatch"];
             };
         };
         responses: {
