@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var D = window.DATA, $ = App.$;
-  var amb = { show: null }, shiftTimer = null;
+  var shiftTimer = null;
 
   function ambientInfo() {
     var n = App.now(), w = App.weatherNow(), next = App.nextEvent();
@@ -36,15 +36,13 @@
   App.on('ready', function () {
     $('#ambient').innerHTML = '<div class="amb-stage"></div><div class="amb-scrim"></div><div class="amb-info"></div>';
     $('#night').innerHTML = '<div class="nt-inner"></div>';
-    amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: 'cover', captions: false, interval: 14000 });
     $('#ambient').addEventListener('click', function () { App.setMode('day'); App.go('home'); });
     $('#night').addEventListener('click', function () { App.setMode('nightdash'); });
   });
 
   App.on('mode', function (m) {
     clearInterval(shiftTimer);
-    if (m === 'ambient') { amb.show.start(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
-    else amb.show.stop();
+    if (m === 'ambient') { paint(); shiftTimer = setInterval(pixelShift, 60000); }
     if (m === 'night') { paint(); shiftTimer = setInterval(pixelShift, 60000); }
     App.resetIdle();
   });

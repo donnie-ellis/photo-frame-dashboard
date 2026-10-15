@@ -43,20 +43,10 @@ export interface WeatherNow {
   advice: string;
 }
 
-export interface PhotoMeta {
-  kicker: string;
-  onThisDay: boolean;
-  place: string;
-}
-
-interface Slideshow {
-  photos?: unknown;
-  start(): void;
-  stop(): void;
-}
-
 // Only what the bridge and the converted views use. js/app.js has the rest.
 interface LegacyApp {
+  mode: string;
+  img(seed: string, w: number, h: number): string;
   register(name: string, view: LegacyView): void;
   on(event: string, fn: (arg?: any) => void): void;
   off(event: string, fn: (arg?: any) => void): void;
@@ -84,11 +74,6 @@ interface LegacyApp {
   eventSheet(e: CalEvent | undefined): void;
   weatherNow(): WeatherNow;
   hourly(count: number): HourSlot[];
-  photoMeta(p: unknown): PhotoMeta;
-  Slideshow: new (
-    el: HTMLElement,
-    opts: { layout: string; captions: boolean; interval: number; onChange?: (slide: { photos: unknown[] }) => void },
-  ) => Slideshow;
   setShoppingDone(id: string, done: boolean): void;
   /** True once the feed has loaded from the bridge (also while it is stale). Mock until then. */
   isLive(feed: 'calendar' | 'shopping' | 'weather' | 'photos'): boolean;
