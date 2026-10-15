@@ -36,8 +36,8 @@ out of scope here.
 - **Weather from Open-Meteo, fetched by frame-bridge**, not the dashboard: the home coordinates stay
   on the Mac, all frames share one cached forecast, and the last forecast survives an internet
   outage. Free, no API key.
-- **Photos through PhotoKit, like the Apple TV screensaver:** one album named "Frame" (a shared
-  album, so anyone in the family can add from their phone) plus "On this day" from the whole
+- **Photos through PhotoKit, like the Apple TV screensaver:** one album named "Frame" (a regular
+  album, or a Shared Album that is never upgraded, see [Photos](#photos-photokit)) plus "On this day" from the whole
   library. The Mac resizes images for the frame.
 
 ### Rejected options and why
@@ -222,7 +222,8 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   with a stable certificate (a self-signed one is enough), not ad hoc: an ad-hoc signature ties the
   grant to that exact build, so every deploy would lose it. Tested for Photos (frame-bridge #9);
   Calendars and Reminders are expected to match (frame-bridge #23).
-- Intel Mac minis top out at macOS 15 Sequoia. Fine for these APIs.
+- Intel Mac minis top out at macOS 15 Sequoia. Fine for these APIs (but see the
+  Shared Album limit under [Photos](#photos-photokit)).
 - Subscribe to `EKEventStoreChanged` and re-query; debounce, since it fires in bursts.
 - Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes are limited to
   `isCompleted` on items in the Shopping list. It needs full Reminders access (already requested with
@@ -267,6 +268,15 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 - The observer fires every few seconds while iCloud syncs, mostly for unrelated changes. Rebuild
   only when `changeDetails(for:)` has something for the album or the "On this day" queries. A
   photo added from a phone showed up about 10–15 s later.
+- **Never upgrade the Frame album.** "Frame" must be a regular album in the Mac mini's library, or
+  a Shared Album that is never upgraded. Never accept the "upgrade Shared Album" prompt on any
+  device (iPhone, iPad, Mac). The Intel Mac mini tops out at macOS 15, and Shared Albums
+  created or upgraded on iOS, iPadOS or macOS 27 open only on 27 and later
+  ([Apple](https://support.apple.com/en-us/108916)). The lookup above includes Shared Albums, so an
+  upgraded album can drop out of view and the slideshow quietly empties.
+- **Empty slideshow:** if `GET /api/photos` is empty while `/healthz` reports `photos` `ok`, open
+  Photos on the Mac mini itself (not a phone) and check that "Frame" is still there and opens. If
+  not, it was probably upgraded.
 
 ### Weather (Open-Meteo)
 
@@ -367,6 +377,8 @@ per-phone token.
   the list of stores is still open.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Weather units: °C or °F (frame-bridge config).
+- Replacing the Mac mini: macOS 27 and later lifts the Shared Album limit. Until then the
+  never-upgrade rule stands (see [Photos](#photos-photokit)).
 
 ## Breaking changes
 
