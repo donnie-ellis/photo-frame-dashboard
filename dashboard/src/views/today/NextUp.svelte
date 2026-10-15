@@ -2,6 +2,7 @@
   // The next event someone has to act on (earliest leave-by), or a quiet-day card.
   import { Icon, pressable } from '../../lib/ui';
   import { calendar } from '../../lib/state/calendar.svelte';
+  import { openEvent } from '../calendar/openEvent.svelte';
 
   let { now }: { now: Date } = $props();
   const App = window.App;
@@ -20,7 +21,7 @@
 </script>
 
 {#if e}
-  <button class="td-hero" style={App.pstyle(App.evColor(e))} onclick={() => App.eventSheet(App.findEvent(e.id))} {@attach pressable}>
+  <button class="td-hero" style={App.pstyle(App.evColor(e))} onclick={() => openEvent(App.findEvent(e.id))} {@attach pressable}>
     <span class="td-hero-main">
       <span class="label label--on">Next up · {who}</span>
       <span class="td-hero-title serif">{e.title}</span>

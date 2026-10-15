@@ -124,7 +124,7 @@
       ({ leak: App.leak })[b.dataset.alert]();
       return;
     }
-    if (b.dataset.cal) { App.calMode = b.dataset.cal; App.rerender(); App.openDemo(); }
+    if (b.dataset.cal) { App.calMode = b.dataset.cal; App.emit('data'); App.rerender(); App.openDemo(); }
   }
 
   App.on('ready', function () {
