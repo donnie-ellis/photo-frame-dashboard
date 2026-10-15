@@ -290,9 +290,9 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   bridge cannot do: the calendar "Add event" button, the photo "Favourite" button, and on shopping
   the add input and suggestions, quantity steppers and "Clear checked items". Check-off and
   "Add back" stay, and are optimistic (rolled back with a toast on error).
-- Lights: the Svelte lights view (`src/views/lights`) uses `/api/lights`, `/api/rooms/{id}`, scene
-  recall and the SSE events, with optimistic updates and rollback on error. `views/control.js`
-  (`App.setDevice`) stays on mock data until it is converted or removed.
+- Lights: the first section of the Svelte Home control view (`src/views/control`) uses
+  `/api/lights`, `/api/rooms/{id}`, scene recall and the SSE events, with optimistic updates and
+  rollback on error. `control.js` is removed, along with its lock, garage and camera tiles.
 - Remove or hide non-light device tiles (blinds, locks, garage, cameras, climate) until those
   have real sources.
 - Weather: `App.hourly` indexes the 48-hour arrays without wrapping, and `snow`/`storm` have
@@ -314,7 +314,7 @@ per-phone token.
 
 1. **Skeleton:** frame-bridge app bundle, LaunchAgent plist, `/healthz`, token check, static
    dashboard files. Point the kiosk app at it.
-2. **Lights:** Hue key setup, `/api/lights`, toggles, SSE relay, wire `control.js`.
+2. **Lights:** Hue key setup, `/api/lights`, toggles, SSE relay.
 3. **Calendar:** EventKit read, calendar→person map, wire `calendar.js`, hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
    check-off write (`PATCH /api/shopping/{id}`), wire `shopping.js`.
