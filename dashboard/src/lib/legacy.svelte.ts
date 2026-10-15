@@ -59,7 +59,10 @@ interface LegacyApp {
     time(d: Date, ampm?: boolean): string;
     ampm(d: Date): string;
     day(d: Date): string;
+    dayShort(d: Date): string;
     month(d: Date): string;
+    monthShort(d: Date): string;
+    rel(d: Date): string;
     range(a: Date, b: Date): string;
     mins(n: number): string;
   };
@@ -67,11 +70,13 @@ interface LegacyApp {
   pstyle(p: Person | string): string;
   isFamily(e: CalEvent): boolean;
   evColor(e: CalEvent): Person;
+  sameDay(a: Date, b: Date): boolean;
+  events(): CalEvent[];
   timedOn(day: Date, pid?: string): CalEvent[];
+  allDayOn(day: Date, pid?: string): CalEvent[];
   leaveBy(e: CalEvent): Date;
   nextEvent(): CalEvent | null;
   findEvent(id: string): CalEvent | undefined;
-  eventSheet(e: CalEvent | undefined): void;
   weatherNow(): WeatherNow;
   hourly(count: number): HourSlot[];
   setShoppingDone(id: string, done: boolean): void;

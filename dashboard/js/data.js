@@ -345,7 +345,6 @@ window.DATA = (function () {
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,
     weather: weather, photos: photos, agents: agents,
-    _gid: function () { return 'g' + (++gid); },
-    _eid: function () { return 'e' + (++n); }
+    _gid: function () { return 'g' + (++gid); }
   };
 })();

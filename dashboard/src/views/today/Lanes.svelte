@@ -2,6 +2,7 @@
   // One lane per person: what is left today. Recomputed each minute and when the events change.
   import { pressable } from '../../lib/ui';
   import { calendar } from '../../lib/state/calendar.svelte';
+  import { openEvent } from '../calendar/openEvent.svelte';
 
   let { now }: { now: Date } = $props();
   const App = window.App;
@@ -28,7 +29,7 @@
       </div>
       {#each lane.shown as e (e.id)}
         {@const cur = +e.start <= +now}
-        <button class="td-ev" class:is-now={cur} onclick={() => App.eventSheet(App.findEvent(e.id))} {@attach pressable}>
+        <button class="td-ev" class:is-now={cur} onclick={() => openEvent(App.findEvent(e.id))} {@attach pressable}>
           <span class="td-ev-t">{cur ? 'Now' : App.fmt.time(e.start, false)}</span>
           <span class="td-ev-n">{e.title}</span>
         </button>
