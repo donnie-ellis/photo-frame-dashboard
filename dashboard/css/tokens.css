@@ -31,6 +31,13 @@
   /* over photos: same in both palettes, like the slideshow overlays */
   --photo-scrim: rgba(0, 0, 0, 0.5);
   --photo-on: rgb(255 255 255);
+  --photo-fill: #1A1917;
+  --photo-gap: #000000;
+  --photo-glass: rgba(0, 0, 0, 0.38);
+  --photo-dim: rgba(0, 0, 0, 0.45);
+  --photo-paper: #FBF9F4;
+  --photo-paper-ink: #111111;
+  --photo-fav: #E4007C;
   --tint-rgb: 0 0 0;
   --warn-ink: #B45F00;
   --warn-ink-2: #8A4A00;
