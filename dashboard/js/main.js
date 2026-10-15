@@ -4,7 +4,6 @@ import './data.js';
 import './app.js';
 import './system.js';
 import './views/tasks.js';
-import './views/shopping.js';
 import './views/agents.js';
 import './views/ambient.js';
 import './diag.js';

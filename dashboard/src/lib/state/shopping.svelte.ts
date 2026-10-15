@@ -1,11 +1,11 @@
 // Shopping feed: items and stores from frame-bridge, with the js/data.js mock as the fallback.
-// Items are replaced whole and written through to window.DATA for the vanilla view. Check-off is
-// optimistic and rolls back with a toast. Nothing else on the list is writable.
+// Items are replaced whole. Check-off is optimistic and rolls back with a toast. Nothing else on
+// the list is writable.
 import * as api from '../api/frame-bridge';
 import type { ShoppingItem, Store } from '../api/frame-bridge';
 import * as events from '../api/events';
 import { toast } from '../ui';
-import { Freshness, watchHealth, writeLegacy, type FeedStatus } from './feed.svelte';
+import { Freshness, watchHealth, type FeedStatus } from './feed.svelte';
 
 class ShoppingStore {
   items = $state.raw<ShoppingItem[]>(window.DATA.groceries);
@@ -29,11 +29,6 @@ class ShoppingStore {
     try {
       const list = await api.getShoppingList();
       this.stores = list.stores;
-      // The view looks up D.catOrder[store], so every live store needs an entry.
-      const catOrder = { ...window.DATA.catOrder };
-      for (const s of list.stores) catOrder[s.id] ??= catOrder.all;
-      window.DATA.catOrder = catOrder;
-      window.DATA.stores = list.stores;
       this.#fresh.ok();
       this.#setItems(list.items);
     } catch {
@@ -41,17 +36,11 @@ class ShoppingStore {
     }
   }
 
-  /** The vanilla view edited the mock list in place (add, clear): pick that up. */
-  syncLegacy(): void {
-    this.items = [...window.DATA.groceries];
-  }
-
   /** Check an item off, or put it back. */
   async setDone(id: string, done: boolean): Promise<void> {
-    // The mock list is still edited in place by the vanilla view (add, clear), so start from DATA.
-    const prev = window.DATA.groceries.find((i) => i.id === id);
+    const prev = this.items.find((i) => i.id === id);
     if (!prev) return;
-    this.#setItems(window.DATA.groceries.map((i) => (i.id === id ? { ...i, done } : i)));
+    this.#setItems(this.items.map((i) => (i.id === id ? { ...i, done } : i)));
     if (this.status === 'mock') return;
     this.#mark(id, 1);
     try {
@@ -88,7 +77,6 @@ class ShoppingStore {
 
   #setItems(items: ShoppingItem[]): void {
     this.items = items;
-    writeLegacy('groceries', items);
   }
 
   #mark(id: string, delta: 1 | -1): void {
