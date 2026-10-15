@@ -343,7 +343,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Error: {
-            /** @description Machine-readable code, e.g. `bad_request`, `not_found`, `source_unavailable`. */
+            /** @description Machine-readable code, one of `bad_request`, `unauthorized`, `forbidden`, `not_found`, `source_unavailable`. */
             error: string;
             /** @description Human-readable detail. */
             detail?: string;
@@ -684,6 +684,23 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /**
+         * @description Write refused: the request has an `Origin` header that is not same-origin with `Host`
+         *     (`http://` plus the `Host` value). Requests with no `Origin` are allowed.
+         */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "forbidden"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description No such resource. */
         NotFound: {
             headers: {
@@ -910,6 +927,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
         };
@@ -1045,6 +1063,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
         };
@@ -1094,6 +1113,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
         };
@@ -1128,6 +1148,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["SourceUnavailable"];
         };

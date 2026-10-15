@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.8.0
+  version: 0.9.0
   summary: Calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -17,6 +17,8 @@ info:
     - IDs are opaque strings. Don't parse them.
     - Optional fields are omitted when there is no value. They are never `null`.
     - Errors use the `Error` schema.
+    - Non-GET requests with a cross-origin `Origin` header get `403`; requests with no `Origin` (curl, the
+      kiosk app) are allowed. The `frame_token` check applies either way.
 
     frame-bridge also serves the built dashboard (`dashboard/dist/`) at `/`, so the page and the API
     share one origin on the LAN. The static files are outside this contract but need the same
@@ -153,6 +155,7 @@ paths:
               example: { id: 'x-apple-reminder://0001', name: Bananas, note: 'Bunch, not too ripe', done: true, qty: 1, cat: Produce, store: grocer }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -216,6 +219,7 @@ paths:
               example: { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 60, temp: 2700, tempRange: { min: 2000, max: 6500 }, color: '#ffb36b' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -246,6 +250,7 @@ paths:
               example: { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen, kind: room, on: false, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001', '6d2b7c11-0000-4000-8000-000000000002'] }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -267,6 +272,7 @@ paths:
               schema: { $ref: '#/components/schemas/Scene' }
               example: { id: '3a9d5e20-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Bright, active: true }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -549,6 +555,14 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: unauthorized }
+    Forbidden:
+      description: |
+        Write refused: the request has an `Origin` header that is not same-origin with `Host`
+        (`http://` plus the `Host` value). Requests with no `Origin` are allowed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: forbidden }
     NotFound:
       description: No such resource.
       content:
@@ -572,7 +586,7 @@ components:
       properties:
         error:
           type: string
-          description: Machine-readable code, e.g. `bad_request`, `not_found`, `source_unavailable`.
+          description: Machine-readable code, one of `bad_request`, `unauthorized`, `forbidden`, `not_found`, `source_unavailable`.
         detail:
           type: string
           description: Human-readable detail.

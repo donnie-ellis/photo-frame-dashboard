@@ -3,7 +3,8 @@
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
-v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15.
+v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
+v0.9.0 (cross-origin writes refused) 2026-10-15.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -102,11 +103,20 @@ stopping a determined attacker.
 - Plain HTTP: anyone with the Wi-Fi password could sniff a token. Acceptable for the goal above. If
   that changes, add HTTPS with a self-signed cert pinned in the kiosk app. A guest Wi-Fi network,
   if the router has one, keeps guests off this network entirely.
+- **Cross-origin writes are refused.** A non-GET request with an `Origin` header that is not
+  same-origin with `Host` (`http://` plus the `Host` value, compared case-insensitively; `null` counts
+  as foreign) gets `403 forbidden`. No `Origin` (curl, the kiosk's native code) is allowed, and the
+  token is still checked. When both checks fail, frame-bridge may answer `401` or `403`; the spec
+  doesn't fix an order. This is cheap defense in depth: a guest's browser has no cookie, and the
+  cookie is bound to the bridge's address, so a DNS-rebinding page doesn't carry it. There is no `Host`
+  allowlist, because frames use the Mac's IP and the cookie already covers rebinding. Idea credit:
+  matt416/homecontrol. In dev, the Vite proxy strips `Origin` so writes against a real bridge look like
+  the allowed no-`Origin` case.
 - Generate tokens with e.g. `openssl rand -hex 32` (hex is safe in a cookie value). Never commit them.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.8.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.9.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -228,6 +238,9 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   card shows only when `state` is `playing` and `title` is present. `sonos` is **optional** in
   `Health.feeds`, so bridges without Sonos configured, and existing bridges, still validate; the
   dashboard tolerates a missing feed key.
+- **Cross-origin writes refused (v0.9.0, additive).** Every write operation also documents `403`
+  `forbidden`. See [Auth](#auth-per-frame-tokens). The dashboard needs no change: writes already roll
+  back and toast on any non-2xx, and in production the page and API share one origin.
 
 ## Implementation notes
 
