@@ -13,6 +13,9 @@
     size = 'm',
     ontoggle,
     onlevel,
+    color,
+    onmore,
+    moreLabel = 'More',
   }: {
     name: string;
     icon?: string;
@@ -25,6 +28,11 @@
     ontoggle: () => void;
     /** Called once on release after a drag. 0 means off. */
     onlevel: (level: number) => void;
+    /** A small dot showing the light's colour (a CSS colour). */
+    color?: string;
+    /** Adds a button, outside the slider, for a detail sheet. */
+    onmore?: () => void;
+    moreLabel?: string;
   } = $props();
 
   const SLOP = 10;
@@ -97,6 +105,7 @@
   }
 </script>
 
+<div class="slider-wrap">
 <button
   class="slider slider--{size}"
   class:lit={shown > 0}
@@ -112,11 +121,20 @@
   <span class="slider-icon"><Icon name={icon} size={size === 'l' ? 40 : 30} /></span>
   <span class="slider-text">
     <span class="slider-name">{name}</span>
-    <span class="slider-level">{shown > 0 ? shown + '%' : 'Off'}</span>
+    <span class="slider-level">
+      {#if color}<span class="slider-dot" style:background={color}></span>{/if}{shown > 0 ? shown + '%' : 'Off'}
+    </span>
   </span>
 </button>
+{#if onmore}
+  <button class="slider-more" aria-label={moreLabel} onclick={onmore} {@attach pressable}>
+    <Icon name="sliders" size={26} />
+  </button>
+{/if}
+</div>
 
 <style>
+  .slider-wrap { position: relative; }
   .slider {
     position: relative;
     overflow: hidden;
@@ -153,6 +171,27 @@
     transition: transform 0.15s var(--ease);
   }
   .drag .slider-fill { transition: none; }
+  .slider-more {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: var(--tap);
+    height: var(--tap);
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    transition: transform 0.15s var(--ease);
+  }
+  .slider-more:global(.is-pressed) { transform: scale(0.9); transition-duration: 0s; }
+  .slider-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    border-radius: 50%;
+    border: 2px solid var(--ink);
+    vertical-align: -2px;
+  }
   .slider-icon, .slider-text { position: relative; }
   .slider-text { display: flex; flex-direction: column; gap: 2px; max-width: 100%; }
   .slider-name {

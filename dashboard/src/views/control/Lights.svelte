@@ -4,12 +4,16 @@
   import type { ViewProps } from '../../lib/legacy.svelte';
   import { lights } from '../../lib/state/lights.svelte';
   import RoomPicker from './RoomPicker.svelte';
+  import LightSheet from './LightSheet.svelte';
 
   let { active }: ViewProps = $props();
 
   // A room opened from "All rooms" without making it the frame's room.
   let browsing = $state<string | null>(null);
   let listOpen = $state(false);
+  // The light whose colour and white sheet is open.
+  let moreId = $state<string | null>(null);
+  const moreOpen = $derived(moreId !== null && lights.devices.some((l) => l.id === moreId));
 
   const home = $derived(lights.defaultRoom);
   const room = $derived(lights.rooms.find((r) => r.id === browsing) ?? home);
@@ -90,6 +94,9 @@
             on={l.on}
             level={l.level}
             pending={lights.pending.has(l.id)}
+            color={l.color}
+            onmore={l.tempRange || l.color ? () => (moreId = l.id) : undefined}
+            moreLabel="{l.name} colour and white"
             ontoggle={() => lights.setLight(l.id, { on: !l.on })}
             onlevel={(lvl) => dim((p) => lights.setLight(l.id, p), lvl)} />
         {/each}
@@ -103,6 +110,10 @@
     <h2 class="serif lv-sheet-title">All rooms</h2>
     <RoomPicker mode="browse" current={room?.id} onpick={browse} />
   </div>
+</Sheet>
+
+<Sheet open={moreOpen} onclose={() => (moreId = null)}>
+  {#if moreId}<LightSheet id={moreId} />{/if}
 </Sheet>
 
 <style>

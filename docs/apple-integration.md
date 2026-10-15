@@ -2,7 +2,8 @@
 
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
-v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14.
+v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
+v0.7.0 (light color and temperature) 2026-10-15.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -95,7 +96,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.6.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.7.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -104,8 +105,8 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
 | `PATCH /api/shopping/{id}` | `{ done }`: check off or un-check a reminder |
 | `GET /api/lights` | Hue rooms and zones, lights, scenes |
-| `PUT /api/lights/{id}` | `{ on?, level? }` |
-| `PUT /api/rooms/{id}` | Same body, for a room or zone (one Hue `grouped_light` request) |
+| `PUT /api/lights/{id}` | `{ on?, level?, temp?, color? }` (`temp` and `color` not together) |
+| `PUT /api/rooms/{id}` | `{ on?, level? }`, for a room or zone (one Hue `grouped_light` request) |
 | `POST /api/scenes/{id}/recall` | Activate a scene |
 | `GET /api/weather` | Today's high/low and 48 hourly temperature, condition and rain-chance values |
 | `GET /api/photos` | The "Frame" album (sampled) plus "On this day" photos |
@@ -132,6 +133,9 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 | `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` or `zone` resource ids |
 | `Scene.icon` | scene name → icon map in frame-bridge config, omitted if unmapped |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
+| `Light.temp` | `1e6 / color_temperature.mirek`, rounded, only when `mirek_valid` |
+| `Light.tempRange` | `color_temperature.mirek_schema` (max mirek is min K, min mirek is max K) |
+| `Light.color` | `color.xy` + `dimming` converted to sRGB hex, clamped to the gamut |
 | `Weather.hi` / `lo` | Open-Meteo `daily.temperature_2m_max` / `_min`, today |
 | `Weather.t` / `p` | `hourly.temperature_2m` (rounded) / `hourly.precipitation_probability` |
 | `Weather.c` | `hourly.weather_code` + `hourly.is_day` → condition name (table in the spec) |
@@ -179,6 +183,14 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   Anything structural arrives as one debounced `lights` ChangeNotice, and the dashboard re-fetches
   `/api/lights`: a light, room/zone or scene added or deleted, or a light leaving every kept room.
   Removals show up live.
+- **Light color and temperature (v0.7.0, additive).** The sheet reads warm-cool and swatches, so
+  the contract uses Kelvin and `#rrggbb`, not mirek and xy. Capability is shown by presence:
+  `tempRange` means white temperature, `color` means colour. `temp` is present only in white mode,
+  and `color` stays as an approximation. Setting `color` leaves white mode and setting `temp`
+  returns to it, as in Hue, so sending both is a 400. Rooms are out for now, so `PUT /api/rooms/{id}`
+  uses a separate `RoomPatch` (`{ on?, level? }`) and its body is unchanged. The white presets
+  (Candle 2200, Warm 2700, Soft 3000, Neutral 4000, Daylight 5000, Cool 6500 K) live in the
+  dashboard and are sent as `temp`.
 - **Weather (v0.3.0) keeps the dashboard's shape** (`hi`, `lo`, and the parallel arrays `t`, `c`,
   `p`), but has 48 hours instead of 24 and a `start` time. The mock's 24 entries wrap around
   midnight, which shows today's early hours as "next" late at night. `feels`, `humidity` and `wind`
@@ -226,6 +238,7 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   The bridge uses a self-signed cert: pin it instead of disabling verification.
 - State: `resource/light`, `resource/room`, `resource/grouped_light`. Toggle with
   `PUT resource/light/{id}` body `{"on":{"on":true},"dimming":{"brightness":60}}`.
+  White temperature is `{"color_temperature":{"mirek":370}}` and colour is `{"color":{"xy":{...}}}`.
 - Live updates: `GET /eventstream/clip/v2` (SSE). Relay into `/api/events`. Hue `update` events
   relay as `light`/`room`/`scene`. Hue add/delete events, and membership changes that move a light
   out of every kept room, become one debounced `lights` notice. The bridge sends it only when the

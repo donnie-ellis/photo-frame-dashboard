@@ -1,6 +1,6 @@
 <script lang="ts">
   // Every kit component in its states, at the frame's 1280×800. Add new components here.
-  import { Button, Chip, HoldButton, IconButton, Segmented, Sheet, SliderTile, StaleBadge, ToggleTile, toast } from '../lib/ui';
+  import { Button, Chip, HoldButton, IconButton, RangeSlider, Segmented, Sheet, SliderTile, StaleBadge, SwatchRow, ToggleTile, toast } from '../lib/ui';
 
   let store = $state<'all' | 'grocer' | 'costco'>('all');
   let mode = $state<'heat' | 'cool' | 'off'>('heat');
@@ -14,6 +14,18 @@
   ]);
   let room = $state({ on: true, level: 80 });
   let toggles = $state([{ name: 'Island', on: false }, { name: 'Pendants', on: true }]);
+
+  let kelvin = $state(2700);
+  let swatch = $state<string | null>('amber');
+  let white = $state<string | null>('2700');
+  const swatches = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink'].map((n) => ({
+    id: n,
+    label: n.charAt(0).toUpperCase() + n.slice(1),
+    color: 'var(--swatch-' + n + ')',
+  }));
+  const whites = [['2200', 'Candle'], ['2700', 'Warm'], ['3000', 'Soft'], ['4000', 'Neutral'], ['5000', 'Daylight'], ['6500', 'Cool']].map(
+    ([k, label]) => ({ id: k, label, sub: k + 'K', color: 'var(--white-' + k + ')' }),
+  );
 
   const cats = ['Produce', 'Bakery', 'Dairy & Eggs', 'Pantry', 'Frozen'];
   function togglePick(c: string) {
@@ -112,6 +124,15 @@
           onlevel={(l) => { t.on = l > 0; if (l > 0) t.level = l; }} />
       {/each}
       <SliderTile name="Pending" on={true} level={60} pending ontoggle={() => {}} onlevel={() => {}} />
+      <SliderTile
+        name="Lamp"
+        on={true}
+        level={70}
+        color="var(--swatch-orange)"
+        onmore={() => toast('More tapped')}
+        moreLabel="Lamp colour and white"
+        ontoggle={() => {}}
+        onlevel={() => {}} />
     </div>
     <div class="tiles wide-tile">
       <SliderTile
@@ -131,6 +152,32 @@
         <ToggleTile name={t.name} on={t.on} ontoggle={() => (t.on = !t.on)} />
       {/each}
       <ToggleTile name="Pending" on={true} pending ontoggle={() => {}} />
+      <ToggleTile name="Lamp" on={true} color="var(--swatch-purple)" ontoggle={() => {}} />
+    </div>
+  </section>
+
+  <section>
+    <h2 class="label">RangeSlider · {kelvin}K</h2>
+    <div class="narrow">
+      <RangeSlider
+        label="White temperature"
+        value={kelvin}
+        min={2000}
+        max={6500}
+        step={50}
+        startLabel="Warm"
+        endLabel="Cool"
+        onchange={(v) => (kelvin = v)} />
+    </div>
+  </section>
+
+  <section>
+    <h2 class="label">SwatchRow · colours ({swatch}) and labelled presets ({white})</h2>
+    <div class="narrow">
+      <SwatchRow {swatches} selected={swatch} onpick={(id) => (swatch = id)} />
+    </div>
+    <div class="narrow gap">
+      <SwatchRow labels columns={3} swatches={whites} selected={white} onpick={(id) => (white = id)} />
     </div>
   </section>
 
@@ -169,6 +216,8 @@
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
   .dark { background: var(--ink); padding: 12px; border-radius: var(--r); }
   .tiles { display: grid; grid-template-columns: repeat(4, 220px); gap: 10px; margin-top: 12px; }
+  .narrow { width: 548px; margin-top: 12px; }
+  .gap { margin-top: 16px; }
   .wide-tile { grid-template-columns: 450px; }
   .pad { padding: 34px 36px 32px; }
   .sheet-title { font-size: 52px; line-height: 1; margin: 6px 0 22px; }

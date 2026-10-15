@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.6.0
+  version: 0.7.0
   summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -170,7 +170,7 @@ paths:
                   - { id: '0f6c1a9e-0000-4000-8000-00000000000a', name: Kitchen, kind: room, on: true, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001', '6d2b7c11-0000-4000-8000-000000000002'] }
                   - { id: '0f6c1a9e-0000-4000-8000-00000000000b', name: Downstairs, kind: zone, on: true, level: 80, lights: ['6d2b7c11-0000-4000-8000-000000000001'] }
                 devices:
-                  - { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 80 }
+                  - { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 80, temp: 2700, tempRange: { min: 2000, max: 6500 }, color: '#ffb36b' }
                   - { id: '6d2b7c11-0000-4000-8000-000000000002', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Island, on: false, level: 100 }
                 scenes:
                   - { id: '3a9d5e20-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', name: Dinner, active: true, icon: utensils }
@@ -182,11 +182,18 @@ paths:
     put:
       operationId: setLight
       tags: [lights]
-      summary: Turn a light on or off, or dim it
+      summary: Turn a light on or off, dim it, or change its white temperature or colour
       description: |
-        Send `on`, `level`, or both. `{ "on": true }` alone restores the light's last level.
-        Setting `level` on a light that is off turns it on. The dashboard turns lights off with
-        `{ "on": false }`, never `level: 0`.
+        Send any of `on`, `level`, `temp` and `color`. `{ "on": true }` alone restores the light's
+        last level. Setting `level` on a light that is off turns it on. The dashboard turns lights
+        off with `{ "on": false }`, never `level: 0`.
+
+        Setting `temp` or `color` also turns the light on. `temp` (Kelvin) is clamped to the
+        light's `tempRange` and puts the light in white mode, where `color` stays as the bridge's
+        approximation. `color` (`#rrggbb`) leaves white mode, so the response omits `temp`. Sending
+        `temp` and `color` in the same request is a 400 `Error`: they are different Hue modes.
+        `temp` is only valid for a light with `tempRange` and `color` only for a light with
+        `color`; otherwise the bridge answers 400.
       parameters:
         - $ref: '#/components/parameters/LightId'
       requestBody:
@@ -194,14 +201,17 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/LightPatch' }
-            example: { on: true, level: 60 }
+            examples:
+              dim: { summary: Dim, value: { on: true, level: 60 } }
+              white: { summary: White temperature, value: { temp: 2700 } }
+              colour: { summary: Colour, value: { color: '#ff8a3d' } }
       responses:
         '200':
           description: The light's state after the change, as the bridge reports it.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Light' }
-              example: { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 60 }
+              example: { id: '6d2b7c11-0000-4000-8000-000000000001', room: '0f6c1a9e-0000-4000-8000-00000000000a', type: light, name: Pendants, on: true, level: 60, temp: 2700, tempRange: { min: 2000, max: 6500 }, color: '#ffb36b' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -213,7 +223,8 @@ paths:
       tags: [lights]
       summary: Turn a room or zone on or off, or dim it
       description: |
-        Same body and rules as `setLight`, applied to every light in the room or zone.
+        Same `on` and `level` rules as `setLight`, applied to every light in the room or zone.
+        Rooms take no `temp` or `color`.
         `{ "on": false }` turns the whole group off. frame-bridge sends one Hue `grouped_light`
         request, not one per light, so the bridge's rate limit isn't hit. Works for zones too.
       parameters:
@@ -222,7 +233,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/LightPatch' }
+            schema: { $ref: '#/components/schemas/RoomPatch' }
             example: { on: false }
       responses:
         '200':
@@ -694,8 +705,48 @@ components:
           description: |
             Brightness in percent (Hue `dimming.brightness`, rounded, at least 1). Kept when the
             light is off, so turning it on restores it. Lights without dimming report 100.
+        temp:
+          type: integer
+          description: |
+            White colour temperature in Kelvin (`1e6 / mirek`, rounded). Present only while the
+            light is in white mode (Hue `mirek_valid`). Omitted in colour mode and on lights
+            without colour temperature.
+        tempRange:
+          type: object
+          required: [min, max]
+          description: |
+            Kelvin range the light supports (from Hue `mirek_schema`). Present on every light that
+            supports white temperature; the dashboard shows the warm-cool slider and white presets
+            only then.
+          properties:
+            min: { type: integer }
+            max: { type: integer }
+        color:
+          type: string
+          pattern: '^#[0-9a-f]{6}$'
+          description: |
+            Current colour as lowercase sRGB `#rrggbb`, from Hue `xy` and brightness. Present on
+            every colour light, even in white mode, where it is the bridge's approximation. The
+            dashboard shows the colour swatches and a colour dot only then.
 
     LightPatch:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      description: |
+        `temp` and `color` must not be sent together (400). Either one turns the light on.
+      properties:
+        on: { type: boolean }
+        level: { type: integer, minimum: 1, maximum: 100 }
+        temp:
+          type: integer
+          description: Kelvin. The bridge clamps it to the light's `tempRange`.
+        color:
+          type: string
+          pattern: '^#[0-9a-f]{6}$'
+          description: Lowercase sRGB `#rrggbb`.
+
+    RoomPatch:
       type: object
       minProperties: 1
       additionalProperties: false

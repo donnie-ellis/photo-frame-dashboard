@@ -7,6 +7,7 @@ export type Room = components['schemas']['Room'];
 export type Scene = components['schemas']['Scene'];
 export type LightsState = components['schemas']['LightsState'];
 export type LightPatch = components['schemas']['LightPatch'];
+export type RoomPatch = components['schemas']['RoomPatch'];
 export type Health = components['schemas']['Health'];
 export type FeedHealth = components['schemas']['FeedHealth'];
 // Not `Event`: that name is the DOM's.
@@ -42,7 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | ShoppingItemPatch): Promise<T> {
+function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | RoomPatch | ShoppingItemPatch): Promise<T> {
   return request<T>(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +54,7 @@ function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | Shopp
 export const listLights = () => request<LightsState>('/api/lights');
 export const setLight = (id: string, patch: LightPatch) =>
   send<Light>('PUT', '/api/lights/' + encodeURIComponent(id), patch);
-export const setRoom = (id: string, patch: LightPatch) =>
+export const setRoom = (id: string, patch: RoomPatch) =>
   send<Room>('PUT', '/api/rooms/' + encodeURIComponent(id), patch);
 export const recallScene = (id: string) =>
   request<Scene>('/api/scenes/' + encodeURIComponent(id) + '/recall', { method: 'POST' });

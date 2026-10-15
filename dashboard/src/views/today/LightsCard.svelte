@@ -26,6 +26,7 @@
         <ToggleTile
           name={l.name}
           on={l.on}
+          color={l.color}
           pending={lights.pending.has(l.id)}
           ontoggle={() => lights.setLight(l.id, { on: !l.on })} />
       {/each}
