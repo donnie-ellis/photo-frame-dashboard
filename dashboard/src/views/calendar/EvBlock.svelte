@@ -112,7 +112,7 @@
   .is-now { box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--c); z-index: 2; }
   .is-family { background: var(--ink); color: var(--on-ink); }
   .cal-ev-with { position: absolute; right: 8px; top: 9px; }
-  .cal-ev-with i { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
+  .cal-ev-with i { box-shadow: 0 0 0 2px var(--card); }
   .cal-ev-travel {
     position: absolute;
     left: 8px;
