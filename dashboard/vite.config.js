@@ -22,6 +22,9 @@ export default defineConfig({
             {
               target: process.env.API_TARGET,
               changeOrigin: true,
+              // changeOrigin rewrites Host but the browser's Origin stays :5173, so a real bridge
+              // would 403 dev writes (v0.9.0). Drop it: no Origin is allowed. Prism doesn't enforce.
+              configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
               headers: process.env.FRAME_TOKEN ? { Cookie: 'frame_token=' + process.env.FRAME_TOKEN } : {},
             },
           ]),
