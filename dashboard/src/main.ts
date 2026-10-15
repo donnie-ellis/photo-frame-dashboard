@@ -11,10 +11,14 @@ import { photos } from './lib/state/photos.svelte';
 import Control from './views/control/Control.svelte';
 import Shopping from './views/shopping/Shopping.svelte';
 import Today from './views/today/Today.svelte';
+import Photos from './views/photos/Photos.svelte';
+import { mountAmbientSlideshow } from './views/photos/ambient.svelte';
 
 registerView('home', Today);
 registerView('control', Control);
 registerView('shopping', Shopping);
+registerView('photos', Photos);
+mountAmbientSlideshow();
 exposeFeeds();
 // These feeds feed several views (and the ambient screen), so they stay live for the page lifetime.
 for (const feed of [calendar, shopping, weather, photos]) feed.activate();

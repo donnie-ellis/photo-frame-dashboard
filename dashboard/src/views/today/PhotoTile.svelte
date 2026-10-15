@@ -1,39 +1,19 @@
 <script lang="ts">
   // The photo slideshow, running only while the view is active. Tap opens Photos.
-  import { untrack } from 'svelte';
-  import type { Attachment } from 'svelte/attachments';
-  import type { PhotoMeta } from '../../lib/legacy.svelte';
+  import { photoMeta, type PhotoMeta } from '../../lib/state/photos.svelte';
   import { pressable } from '../../lib/ui';
+  import Slideshow from '../photos/Slideshow.svelte';
 
   let { active }: { active: boolean } = $props();
   const App = window.App;
 
   let meta = $state.raw<PhotoMeta | null>(null);
-  let show: InstanceType<typeof App.Slideshow> | undefined;
-
-  // Built once. `active` is read untracked, so a visit doesn't rebuild the slideshow.
-  const stage: Attachment<HTMLElement> = (el) => {
-    show = new App.Slideshow(el, {
-      layout: 'cover',
-      captions: false,
-      interval: 12000,
-      onChange: (s) => (meta = App.photoMeta(s.photos[0])),
-    });
-    if (untrack(() => active)) show.start();
-    return () => {
-      show?.stop();
-      show = undefined;
-    };
-  };
-
-  $effect(() => {
-    if (active) show?.start();
-    else show?.stop();
-  });
 </script>
 
 <button class="td-photo" onclick={() => App.go('photos')} {@attach pressable}>
-  <span class="td-stage" {@attach stage}></span>
+  <span class="td-stage">
+    <Slideshow {active} layout="cover" size="half" captions={false} interval={12000} onchange={(s) => (meta = photoMeta(s.photos[0]))} />
+  </span>
   {#if meta}
     <span class="td-cap">
       <b>{meta.onThisDay ? 'On this day · ' : ''}{meta.kicker}</b>

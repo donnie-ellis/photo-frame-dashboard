@@ -198,7 +198,7 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - **Weather adds `snow` and `storm` conditions.** The mock only has five icons. The dashboard needs
   icons and labels for them when the feed is wired.
 - **Photos have `id` instead of `seed`.** The image URL is `/api/photos/{id}/image`, and the
-  dashboard builds it (`App.photoSrc`). Two sizes only, so images cache well.
+  dashboard builds it (`photoSrc` in `src/lib/state/photos.svelte.ts`, built on `photoUrl`). Two sizes only, so images cache well.
 - **No `from` on photos.** PhotoKit doesn't seem to say who added a photo to a shared album. The
   slideshow caption has to work without it.
 - **`fav` is read only.** Hide the favorite button until a write is added (it changes the Photos
@@ -316,7 +316,7 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   have real sources.
 - Weather: `App.hourly` indexes the 48-hour arrays without wrapping, and `snow`/`storm` have
   icons and labels.
-- Photos: image URLs are built from `id` (`App.photoSrc`), and captions cope with a missing `from`
+- Photos: image URLs are built from `id` (`photoSrc` in `src/lib/state/photos.svelte.ts`, built on `photoUrl`), and captions cope with a missing `from`
   and `place`.
 - The person ids in `js/data.js` are placeholders and must match frame-bridge's people config.
 
