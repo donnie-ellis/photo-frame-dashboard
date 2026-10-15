@@ -8,6 +8,7 @@ import { calendar } from './lib/state/calendar.svelte';
 import { shopping } from './lib/state/shopping.svelte';
 import { weather } from './lib/state/weather.svelte';
 import { photos } from './lib/state/photos.svelte';
+import Calendar from './views/calendar/Calendar.svelte';
 import Control from './views/control/Control.svelte';
 import Shopping from './views/shopping/Shopping.svelte';
 import Today from './views/today/Today.svelte';
@@ -16,6 +17,7 @@ import { mountAmbientSlideshow } from './views/photos/ambient.svelte';
 
 registerView('home', Today);
 registerView('control', Control);
+registerView('calendar', Calendar);
 registerView('shopping', Shopping);
 registerView('photos', Photos);
 mountAmbientSlideshow();

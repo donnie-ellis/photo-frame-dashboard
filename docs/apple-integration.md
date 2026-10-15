@@ -301,14 +301,15 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   day, week and month, and the spec allows up to 120 days. Reloads on `calendar` notices and when
   the local day changes.
 - Once a feed has loaded from the bridge (stale counts as loaded), the dashboard hides what the
-  bridge cannot do: the calendar "Add event" button and the photo "Favourite" button. The Svelte
-  Shopping view (`src/views/shopping`) always hides add, suggestions/usuals, quantity steppers and
-  "Clear checked items". Check-off and "Add back" stay (`PATCH` done), and are optimistic (rolled
-  back with a toast on error).
+  bridge cannot do: the photo "Favourite" button. The Svelte Shopping view (`src/views/shopping`)
+  always hides add, suggestions/usuals, quantity steppers and "Clear checked items". Check-off and
+  "Add back" stay (`PATCH` done), and are optimistic (rolled back with a toast on error).
 - Shopping, planned but not specced. A later contract change would need: create
   (`POST /api/shopping` with `{ name, qty?, store? }`), `qty` in `ShoppingItemPatch`, delete or
   clear (`DELETE /api/shopping/{id}` or a bulk clear), and a suggestions source
   (`GET /api/shopping/suggestions`).
+- The calendar view (`src/views/calendar`) is a Svelte view and is read-only: it has no add or
+  edit UI, in mock mode too.
 - Lights: the first section of the Svelte Home control view (`src/views/control`) uses
   `/api/lights`, `/api/rooms/{id}`, scene recall and the SSE events, with optimistic updates and
   rollback on error. `control.js` is removed, along with its lock, garage and camera tiles.
