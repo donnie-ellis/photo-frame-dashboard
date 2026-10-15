@@ -1,6 +1,6 @@
 // Lights feed: rooms, zones, lights and scenes from frame-bridge, with the offline mock as the
 // fallback. Items are replaced whole (never mutated) and writes are optimistic with rollback.
-// window.DATA is not touched: the vanilla Control view keeps its own mock devices.
+// window.DATA is not touched (no vanilla view reads lights).
 import * as api from '../api/frame-bridge';
 import type { Light, LightPatch, Room, Scene } from '../api/frame-bridge';
 import * as events from '../api/events';
