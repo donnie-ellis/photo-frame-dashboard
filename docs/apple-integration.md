@@ -86,7 +86,7 @@ stopping a determined attacker.
 - Every request, including the static dashboard files, needs the `frame_token` cookie; otherwise
   `401`. Compare hashes in constant time.
 - The **kiosk app** stores the URL and token on the frame (set once over adb, see
-  `dashboard/kiosk/MainActivity.java`) and sets the cookie for the bridge's origin before loading
+  `dashboard/kiosk/src/com/wesbos/homehq/MainActivity.java`) and sets the cookie for the bridge's origin before loading
   the page. A cookie rather than a header, because `EventSource` can't send headers. Dashboard code
   never sees the token.
 - Plain HTTP: anyone with the Wi-Fi password could sniff a token. Acceptable for the goal above. If
@@ -116,7 +116,7 @@ source of truth for paths, schemas and errors. This section only explains the ch
 
 ### Field mapping (source → dashboard)
 
-Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
+Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` read, not the source APIs.
 
 | Dashboard | Source |
 | --- | --- |
@@ -287,12 +287,22 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 
 ### Dashboard side
 
+- Views are Svelte, registered with `registerView` in `src/main.ts`: Today (`src/views/today`),
+  Calendar (`src/views/calendar`), Shopping (`src/views/shopping`), Photos (`src/views/photos`) and
+  Home control (`src/views/control`). Still vanilla: the ambient and night overlays
+  (`js/views/ambient.js`), and `tasks.js` and `agents.js` (sections in `index.html`, no rail button).
 - Feeds live in Svelte stores (`src/lib/state/`: `calendar`, `shopping`, `weather`, `photos`, plus
   `lights`), fetched through `src/lib/api/frame-bridge.ts`. Each store starts from the `js/data.js`
-  mock and, after every successful fetch, replaces the matching `window.DATA` property whole
-  (`events`, `weather`, `photos`; shopping has no vanilla reader left, so `groceries` and `stores`
-  are no longer written) and calls `App.emit('data', <prop>)`, so
-  the vanilla views keep working. The mock stays as the fallback when the bridge is unreachable.
+  mock. The mock stays as the fallback when the bridge is unreachable.
+- Only `events` (`calendar.svelte.ts`) and `weather` (`weather.svelte.ts`) are still written whole
+  to `window.DATA` after each fetch (`writeLegacy` in `src/lib/state/feed.svelte.ts`), followed by
+  `App.emit('data', <prop>)`. Reason: the helpers in `js/app.js` (`App.events`, `App.timedOn`,
+  `App.nextEvent` read `DATA.events`; `App.weatherNow`, `App.hourly` read `DATA.weather`) are still
+  used by `ambient.js` and by Svelte views (NextUp, Lanes, the calendar grids, the Today weather
+  tile). `photos`, `groceries`/`stores` and lights are never written: the stores seed from the
+  mock, and `lights.svelte.ts` never touches `DATA`. An unlabelled `App.emit('data')` (the demo
+  drawer's calendar mode) makes `calendar.syncLegacy()` re-read `DATA.events`
+  (`exposeFeeds` in `src/lib/legacy.svelte.ts`).
 - The four non-light stores are activated once in `src/main.ts` and stay live for the page
   lifetime, because several views and the ambient screen read them. The SSE stream
   (`src/lib/api/events.ts`) is reference counted, with a 30 s poll if it fails, and `/healthz` is
@@ -300,26 +310,32 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - Release 1 calendar fetch window: today minus 35 days to today plus 84 days. The view pages by
   day, week and month, and the spec allows up to 120 days. Reloads on `calendar` notices and when
   the local day changes.
-- Once a feed has loaded from the bridge (stale counts as loaded), the dashboard hides what the
-  bridge cannot do: the photo "Favourite" button. The Svelte Shopping view (`src/views/shopping`)
-  always hides add, suggestions/usuals, quantity steppers and "Clear checked items". Check-off and
-  "Add back" stay (`PATCH` done), and are optimistic (rolled back with a toast on error).
+- Shopping: once the feed has loaded (stale counts as loaded), the Svelte Shopping view has no add,
+  suggestions/usuals, quantity steppers or "Clear checked items". Check-off and "Add back" stay
+  (`setDone` in `src/lib/state/shopping.svelte.ts`, `PATCH` done), optimistic and rolled back with a
+  toast on error.
 - Shopping, planned but not specced. A later contract change would need: create
   (`POST /api/shopping` with `{ name, qty?, store? }`), `qty` in `ShoppingItemPatch`, delete or
   clear (`DELETE /api/shopping/{id}` or a bulk clear), and a suggestions source
   (`GET /api/shopping/suggestions`).
-- The calendar view (`src/views/calendar`) is a Svelte view and is read-only: it has no add or
-  edit UI, in mock mode too.
-- Lights: the first section of the Svelte Home control view (`src/views/control`) uses
-  `/api/lights`, `/api/rooms/{id}`, scene recall and the SSE events, with optimistic updates and
-  rollback on error. `control.js` is removed, along with its lock, garage and camera tiles.
-- Remove or hide non-light device tiles (blinds, locks, garage, cameras, climate) until those
-  have real sources.
+- The calendar view (`src/views/calendar`) is read-only: it has no add or edit UI, in mock mode too.
+- Lights: the Home control view (`src/views/control`: Control, Lights, LightSheet, RoomPicker) has
+  only lights. It uses `/api/lights`, `/api/rooms/{id}`, scene recall and the SSE events, with
+  optimistic updates and rollback on error. `window.DATA` is untouched. Blinds, locks, garage,
+  cameras and climate have no tiles until they have real sources.
 - Weather: `App.hourly` indexes the 48-hour arrays without wrapping, and `snow`/`storm` have
-  icons and labels.
-- Photos: image URLs are built from `id` (`photoSrc` in `src/lib/state/photos.svelte.ts`, built on `photoUrl`), and captions cope with a missing `from`
-  and `place`.
+  icons and labels. The Today weather tile calls the same helpers.
+- Photos: one Slideshow (`src/views/photos/Slideshow.svelte`) is used by the Photos view, the Today
+  tile (`src/views/today/PhotoTile.svelte`, cover layout, size half) and the ambient screen
+  (`src/views/photos/ambient.svelte.ts` mounts it into `#ambient .amb-stage` on `ready` and follows
+  `mode`; `ambient.js` still draws the overlay and clock). Image URLs are built from `id`
+  (`photoSrc` in `src/lib/state/photos.svelte.ts`, built on `photoUrl`), sized by `imgSize` in
+  `Slideshow.svelte`: full for cover, pair and collage (the Today tile passes half), half for
+  polaroid. The "Favourite" button renders only while `photos.status === 'mock'` and toggles only
+  the mock item; once the feed has loaded (stale counts) it is hidden. Captions cope with a missing
+  `from` and `place`.
 - The person ids in `js/data.js` are placeholders and must match frame-bridge's people config.
+- Target WebView 106: no syntax newer than what `dashboard/vite.config.js` already targets.
 
 ### People's status
 
@@ -328,16 +344,15 @@ and ETA would need live location. The status text, ETA and the away styling are 
 UI; people stay as names, colours and avatars. If home/away is missed later, the best option is
 iOS Shortcuts "Arrive/Leave home" automations on each adult's phone calling frame-bridge with a
 per-phone token.
-- Target WebView 106: no syntax newer than what `vite.config.js` already targets.
 
 ## Phases
 
 1. **Skeleton:** frame-bridge app bundle, LaunchAgent plist, `/healthz`, token check, static
    dashboard files. Point the kiosk app at it.
 2. **Lights:** Hue key setup, `/api/lights`, toggles, SSE relay.
-3. **Calendar:** EventKit read, calendar→person map, wire `calendar.js`, hide "Add to calendar".
+3. **Calendar:** EventKit read, calendar→person map, wire the Calendar view (`src/views/calendar`), hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
-   check-off write (`PATCH /api/shopping/{id}`), wire `shopping.js`.
+   check-off write (`PATCH /api/shopping/{id}`), wire the Shopping view (`src/views/shopping`).
 5. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
 6. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
    slideshow.
