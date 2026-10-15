@@ -4,7 +4,7 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -116,7 +116,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.9.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.10.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -167,6 +167,7 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 | `Photo.place` | `location`, reverse-geocoded (`CLGeocoder`) to a short name, cached per asset |
 | `Photo.tag` | same day + within a few km, computed by frame-bridge |
 | `Photo.fav` | `isFavorite` |
+| `Photo.focus` | Vision (faces → people → saliency) union, padded, flipped to top-left origin, cached per asset |
 | `NowPlaying.room` | config `room` (ZoneGroupTopology on `host` finds its group coordinator) |
 | `NowPlaying.title` / `artist` / `album` | DIDL-Lite `dc:title` / `dc:creator` / `upnp:album` |
 | `NowPlaying.art` | `upnp:albumArtURI` as a speaker-relative `/getaa` path: `true`. An external URL: `false` |
@@ -241,6 +242,11 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 - **Cross-origin writes refused (v0.9.0, additive).** Every write operation also documents `403`
   `forbidden`. See [Auth](#auth-per-frame-tokens). The dashboard needs no change: writes already roll
   back and toast on any non-2xx, and in production the page and API share one origin.
+- **Photo focus (v0.10.0, additive).** Crops cut off faces because the dashboard only knows `o`.
+  `Photo.focus` is a box in fractions of the image, top-left origin, already padded, and omitted
+  until computed or when nothing was found (the dashboard keeps its default crop). The dashboard
+  only moves the crop (`object-position`) and clamps the Ken Burns drift so the box stays in view;
+  it never zooms past `cover`.
 
 ## Implementation notes
 
@@ -297,6 +303,18 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   and `isNetworkAccessAllowed = true` (photos in iCloud with "Optimize Mac Storage" need a
   download). Encode JPEG, cache on disk by id + size.
 - Changes: `PHPhotoLibraryChangeObserver` → `photos` SSE notice (debounced).
+- **Focus** (`Photo.focus`) with Vision, in this order:
+  1. `VNDetectFaceRectanglesRequest`, confidence ≥ 0.6, each box expanded about 50% wider and 65%
+     taller for headroom.
+  2. No faces: `VNDetectHumanRectanglesRequest` (`upperBodyOnly = false`), confidence ≥ 0.6.
+  3. Neither: `VNGenerateObjectnessBasedSaliencyImageRequest` `salientObjects`, confidence ≥ 0.5.
+     If their union covers more than 85% of the image, discard it and use
+     `VNGenerateAttentionBasedSaliencyImageRequest` instead.
+
+  Then take the union, pad about 3.5%, clip to [0,1] and flip y (`y = 1 - y - h`). Run in the
+  background on the cached 1280 `full` JPEG, a few at a time, cached on disk per asset id, never in
+  a request handler (like `place`). Send a debounced `photos` notice after a batch lands. Approach
+  from matt416/homecontrol `macos/subject-analyzer/main.swift` (MIT), reference only, no code copied.
 - **Shared album** (spike: frame-bridge #9). PhotoKit stores shared album photos as a JPEG at
   2048 px on the long edge, enough for the 1280 px `full` size, and cloud-only ones download in
   well under a second. `location` is missing on some, so `place` is sometimes omitted.
@@ -396,6 +414,9 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   polaroid. The "Favourite" button renders only while `photos.status === 'mock'` and toggles only
   the mock item; once the feed has loaded (stale counts) it is hidden. Captions cope with a missing
   `from` and `place`.
+- Photo focus: `Crop.svelte` and `focus.ts` (`src/views/photos/`) set `object-position` from
+  `Photo.focus` for cover crops (single, pair, collage, polaroid). Portrait singles (`.ss-fit`,
+  contain) don't crop. The Ken Burns drift is clamped to keep the focus in view.
 - The person ids in `js/data.js` are placeholders and must match frame-bridge's people config.
 - Target WebView 106: no syntax newer than what `dashboard/vite.config.js` already targets.
 

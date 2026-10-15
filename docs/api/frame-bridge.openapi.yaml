@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.9.0
+  version: 0.10.0
   summary: Calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
@@ -322,7 +322,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Photo' }
               example:
-                - { id: 'B7E1C2A0-0000-4000-8000-000000000001/L0/001', o: l, date: '2023-08-12', place: Lake of Bays, tag: '2023-08-12-1', fav: true }
+                - { id: 'B7E1C2A0-0000-4000-8000-000000000001/L0/001', o: l, date: '2023-08-12', place: Lake of Bays, tag: '2023-08-12-1', fav: true, focus: { x: 0.12, y: 0.18, w: 0.34, h: 0.52 } }
                 - { id: 'B7E1C2A0-0000-4000-8000-000000000002/L0/001', o: p, date: '2024-05-19', place: Humber Bay Park, tag: '2024-05-19-1', fav: false }
                 - { id: 'B7E1C2A0-0000-4000-8000-000000000003/L0/001', o: p, date: '2024-05-19', place: Humber Bay Park, tag: '2024-05-19-1', fav: false }
                 - { id: 'B7E1C2A0-0000-4000-8000-000000000004/L0/001', o: l, date: '2019-10-13', tag: '2019-10-13-1', fav: false }
@@ -444,7 +444,7 @@ paths:
         | `scene` | `Scene` | Replace that scene in place |
         | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
         | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
-        | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
+        | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, the daily re-sample, or a batch of new focus values) |
         | `nowplaying` | `NowPlaying` | Replace the now playing state in place (sent only when it changes) |
 
         The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
@@ -1023,3 +1023,19 @@ components:
         fav:
           type: boolean
           description: Favorite in Photos. Read only in this version.
+        focus:
+          $ref: '#/components/schemas/PhotoFocus'
+
+    PhotoFocus:
+      type: object
+      required: [x, y, w, h]
+      description: |
+        Where the subject is, as fractions of the image (the same at every size, because
+        `/image` keeps the aspect ratio). Top-left origin, `x + w <= 1` and `y + h <= 1`. Already
+        padded, so the dashboard uses it as-is. The `Photo` omits `focus` until it is computed, or
+        when nothing was found; the dashboard then uses its default crop.
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        w: { type: number, minimum: 0, maximum: 1 }
+        h: { type: number, minimum: 0, maximum: 1 }

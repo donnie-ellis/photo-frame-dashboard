@@ -8,9 +8,9 @@ export interface Slide {
   key: number;
   layout: Exclude<Layout, 'auto'>;
   photos: PhotoItem[];
-  /** Ken Burns drift and polaroid tilt, chosen once. */
-  dx: string;
-  dy: string;
+  /** Ken Burns drift (signed fractions of the box) and polaroid tilt, chosen once. */
+  dx: number;
+  dy: number;
   rot: number;
 }
 
@@ -88,8 +88,8 @@ export function createDeck(getList: () => PhotoItem[]) {
       key: ++key,
       layout,
       photos: ps,
-      dx: (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 2.5) + '%',
-      dy: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 1.5) + '%',
+      dx: (Math.random() > 0.5 ? 1 : -1) * (0.01 + Math.random() * 0.025),
+      dy: (Math.random() > 0.5 ? 1 : -1) * (0.005 + Math.random() * 0.015),
       rot: Math.round((Math.random() * 5 - 2.5) * 10) / 10,
     };
   }
