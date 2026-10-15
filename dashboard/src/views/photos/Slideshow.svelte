@@ -2,9 +2,11 @@
   // The photo slideshow, shared by Photos, the Today tile and the ambient screen. At most two
   // slides are mounted (the outgoing one stays until the incoming fade ends), and the next
   // slide's first image is preloaded off-DOM. Timers and the Ken Burns drift stop when inactive.
+  // Crops follow each photo's focus box, and the drift is clamped to keep it in view (see Crop.svelte).
   import { untrack } from 'svelte';
   import { fade } from 'svelte/transition';
   import { photos, photoMeta, photoSrc, type PhotoItem } from '../../lib/state/photos.svelte';
+  import Crop from './Crop.svelte';
   import { createDeck, type Layout, type Slide } from './deck';
 
   let {
@@ -130,7 +132,7 @@
 {/snippet}
 
 {#snippet pane(p: PhotoItem, s: Slide, cls: string)}
-  <div class="ss-pane {cls}"><img class="ss-img" src={src(p, s)} alt="" onerror={broken} /></div>
+  <div class="ss-pane {cls}"><Crop photo={p} src={src(p, s)} /></div>
 {/snippet}
 
 <div class="ss" class:paused={!active} style:--ss-dur="{interval + 2000}ms">
@@ -144,9 +146,7 @@
         {#if s.photos[0].o === 'p'}
           <img class="ss-fit" src={src(s.photos[0], s)} alt="" onerror={broken} />
         {:else}
-          <div class="ss-kb" style:--dx={s.dx} style:--dy={s.dy}>
-            <img class="ss-img" src={src(s.photos[0], s)} alt="" onerror={broken} />
-          </div>
+          <Crop photo={s.photos[0]} src={src(s.photos[0], s)} drift={{ dx: s.dx, dy: s.dy }} />
         {/if}
         {#if captions}{@render cap(s, false)}{/if}
       {:else if s.layout === 'pair'}
@@ -161,7 +161,7 @@
       {:else}
         {@const meta = photoMeta(s.photos[0])}
         <figure class="ss-polaroid" class:ss-polaroid--p={s.photos[0].o === 'p'} style:transform="rotate({s.rot}deg)">
-          <div class="ss-polaroid-img"><img class="ss-img" src={src(s.photos[0], s)} alt="" onerror={broken} /></div>
+          <div class="ss-polaroid-img"><Crop photo={s.photos[0]} src={src(s.photos[0], s)} /></div>
           <figcaption><i>{meta.place ? meta.place + ', ' : ''}{meta.monthYear}</i></figcaption>
         </figure>
       {/if}
@@ -172,14 +172,7 @@
 <style>
   .ss { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; background: var(--photo-fill); }
   .ss-slide { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; background: var(--photo-fill); }
-  .ss-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
-  .ss-img:global(.is-broken), .ss-fit:global(.is-broken) { visibility: hidden; }
-
-  .ss-kb { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; background: var(--photo-fill); animation: ss-kb var(--ss-dur) linear both; }
-  .paused .ss-kb { animation-play-state: paused; }
-  @keyframes ss-kb {
-    to { transform: scale(1.08) translate(var(--dx), var(--dy)); }
-  }
+  .ss-fit:global(.is-broken) { visibility: hidden; }
 
   .ss-fit { position: absolute; top: 0; left: 50%; width: auto; height: 100%; transform: translateX(-50%); object-fit: contain; }
 

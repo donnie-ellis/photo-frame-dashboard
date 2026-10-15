@@ -298,7 +298,7 @@ export interface paths {
          *     | `scene` | `Scene` | Replace that scene in place |
          *     | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
          *     | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
-         *     | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
+         *     | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, the daily re-sample, or a batch of new focus values) |
          *     | `nowplaying` | `NowPlaying` | Replace the now playing state in place (sent only when it changes) |
          *
          *     The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
@@ -652,6 +652,19 @@ export interface components {
             tag: string;
             /** @description Favorite in Photos. Read only in this version. */
             fav: boolean;
+            focus?: components["schemas"]["PhotoFocus"];
+        };
+        /**
+         * @description Where the subject is, as fractions of the image (the same at every size, because
+         *     `/image` keeps the aspect ratio). Top-left origin, `x + w <= 1` and `y + h <= 1`. Already
+         *     padded, so the dashboard uses it as-is. The `Photo` omits `focus` until it is computed, or
+         *     when nothing was found; the dashboard then uses its default crop.
+         */
+        PhotoFocus: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
         };
     };
     responses: {
@@ -1334,7 +1347,13 @@ export interface operations {
                      *         "date": "2023-08-12",
                      *         "place": "Lake of Bays",
                      *         "tag": "2023-08-12-1",
-                     *         "fav": true
+                     *         "fav": true,
+                     *         "focus": {
+                     *           "x": 0.12,
+                     *           "y": 0.18,
+                     *           "w": 0.34,
+                     *           "h": 0.52
+                     *         }
                      *       },
                      *       {
                      *         "id": "B7E1C2A0-0000-4000-8000-000000000002/L0/001",
