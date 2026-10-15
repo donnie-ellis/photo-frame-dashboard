@@ -327,6 +327,10 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   under `/api`. Unknown paths under `/api` are `404`, not the dashboard.
 - `index.html` must not be cached (`Cache-Control: no-cache`), so a new deploy is picked up on
   reload. The hashed files under `/assets` can be cached for a long time.
+- The dashboard polls `/` every 15 s while visible. It reloads only after it sees the same new
+  `/assets/` set twice and every new asset answers `HEAD` 200, and only when idle (no touch for
+  30 s, day mode, not on Photos, no sheet, takeover or demo drawer open). A `401` or any other error
+  keeps the current screen. This depends on the no-cache `index.html` above.
 - Deploy is copying `dist/` to the Mac mini (e.g. `rsync -a --delete`). Keep the previous copy
   for rollback.
 
