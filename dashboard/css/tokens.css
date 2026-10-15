@@ -35,6 +35,9 @@
   --photo-gap: #000000;
   --photo-glass: rgba(0, 0, 0, 0.38);
   --photo-dim: rgba(0, 0, 0, 0.45);
+  --photo-seg: rgba(0, 0, 0, 0.35);
+  --photo-on-2: rgba(255, 255, 255, 0.85);
+  --photo-ink: #111111;
   --photo-paper: #FBF9F4;
   --photo-paper-ink: #111111;
   --photo-fav: #E4007C;
@@ -63,6 +66,8 @@
   --blind-on: #E4EEFA;
   --field: #FFFFFF;
   --field-hint: #AAA59B;
+  /* modal backdrop behind kit sheets; matches vanilla .sheet-scrim by day */
+  --scrim: rgba(17, 17, 17, 0.45);
   --task-star: #E8A200;
   --task-done: #C98A00;
 
@@ -138,6 +143,7 @@
   --blind-on: #3A1E12;
   --field: #1A0907;
   --field-hint: #9C7A55;
+  --scrim: rgba(0, 0, 0, 0.6);
   --task-star: #E89A3C;
   --task-done: #D9A23A;
   --accent: var(--ink);

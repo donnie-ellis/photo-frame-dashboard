@@ -3,6 +3,7 @@
   import { Button, Chip, HoldButton, IconButton, RangeSlider, Segmented, Sheet, SliderTile, StaleBadge, SwatchRow, ToggleTile, toast } from '../lib/ui';
 
   let store = $state<'all' | 'grocer' | 'costco'>('all');
+  let layout = $state('single');
   let mode = $state<'heat' | 'cool' | 'off'>('heat');
   let picked = $state<string[]>(['Produce']);
   let sheetOpen = $state(false);
@@ -74,6 +75,16 @@
             { value: 'heat', label: 'Heat' },
             { value: 'cool', label: 'Cool' },
             { value: 'off', label: 'Off' },
+          ]} />
+      </div>
+      <div class="glass">
+        <Segmented
+          tone="glass"
+          bind:value={layout}
+          options={[
+            { value: 'single', label: 'Single' },
+            { value: 'pair', label: 'Pair' },
+            { value: 'collage', label: 'Collage' },
           ]} />
       </div>
     </div>
@@ -215,6 +226,7 @@
   section { margin-top: 28px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
   .dark { background: var(--ink); padding: 12px; border-radius: var(--r); }
+  .glass { background: var(--photo-fill); padding: 12px; border-radius: var(--r); }
   .tiles { display: grid; grid-template-columns: repeat(4, 220px); gap: 10px; margin-top: 12px; }
   .narrow { width: 548px; margin-top: 12px; }
   .gap { margin-top: 16px; }

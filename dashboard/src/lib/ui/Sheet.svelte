@@ -57,7 +57,7 @@
     right: 0;
     bottom: 0;
     left: 0;
-    background: rgba(17, 17, 17, 0.45);
+    background: var(--scrim);
   }
   .panel {
     position: relative;
