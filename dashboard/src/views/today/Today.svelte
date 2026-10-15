@@ -4,6 +4,7 @@
   import { untrack } from 'svelte';
   import type { ViewProps } from '../../lib/legacy.svelte';
   import { lights } from '../../lib/state/lights.svelte';
+  import { nowPlaying } from '../../lib/state/nowplaying.svelte';
   import Clock from './Clock.svelte';
   import Weather from './Weather.svelte';
   import LightsCard from './LightsCard.svelte';
@@ -11,6 +12,7 @@
   import Lanes from './Lanes.svelte';
   import PhotoTile from './PhotoTile.svelte';
   import ShoppingCard from './ShoppingCard.svelte';
+  import NowPlayingTile from './NowPlayingTile.svelte';
 
   let { active }: ViewProps = $props();
 
@@ -36,6 +38,12 @@
     untrack(() => lights.activate());
     return () => lights.deactivate();
   });
+
+  $effect(() => {
+    if (!active) return;
+    untrack(() => nowPlaying.activate());
+    return () => nowPlaying.deactivate();
+  });
 </script>
 
 <div class="td">
@@ -47,7 +55,11 @@
     <Lanes {now} />
   </div>
   <div class="td-side">
-    <PhotoTile {active} />
+    {#if nowPlaying.showing}
+      <NowPlayingTile />
+    {:else}
+      <PhotoTile {active} />
+    {/if}
     <ShoppingCard />
   </div>
 </div>

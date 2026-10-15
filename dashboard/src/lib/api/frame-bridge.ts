@@ -19,6 +19,7 @@ export type Store = components['schemas']['Store'];
 export type Weather = components['schemas']['Weather'];
 export type WeatherCondition = components['schemas']['WeatherCondition'];
 export type Photo = components['schemas']['Photo'];
+export type NowPlaying = components['schemas']['NowPlaying'];
 
 const TIMEOUT_MS = 8000;
 
@@ -84,3 +85,7 @@ export const getWeather = () => request<Weather>('/api/weather');
 export const listPhotos = () => request<Photo[]>('/api/photos');
 export const photoUrl = (id: string, size: 'full' | 'half' = 'full') =>
   '/api/photos/' + encodeURIComponent(id) + '/image?size=' + size;
+export const getNowPlaying = () => request<NowPlaying>('/api/nowplaying');
+/** `key` is the per-track cache-buster (the server ignores it). */
+export const nowPlayingArtUrl = (key: string, size: 'full' | 'half' = 'half') =>
+  '/api/nowplaying/art?size=' + size + '&v=' + encodeURIComponent(key);
