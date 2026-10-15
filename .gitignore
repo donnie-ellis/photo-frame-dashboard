@@ -17,3 +17,4 @@ __pycache__/
 # uses them too. Per-machine files are not.
 /.claude/settings.local.json
 /.claude/state/
+/.claude/agent-memory

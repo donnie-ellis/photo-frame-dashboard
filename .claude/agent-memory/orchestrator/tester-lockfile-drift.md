@@ -1,12 +1,12 @@
 ---
 name: tester-lockfile-drift
-description: Tester npm/npx steps can leave dashboard/package-lock.json modified; the user wants that drift discarded, not shipped
+description: npm/npx steps in coder/tester runs often modify dashboard/package-lock.json; the user wants that drift discarded, not shipped
 metadata:
   type: feedback
 ---
 
-During the tester run for #30 (2026-10-14), `dashboard/package-lock.json` was left modified: re-resolved dep versions, such as @cloudflare/workerd, unrelated to the issue. The cause was probably `npx`/`npm` during gen:api, Redocly or Prism, but that wasn't confirmed. I stopped the loop as the rules require. The user said to discard the lockfile and restart.
+npm/npx steps (gen:api, Redocly, Prism, sometimes `npm install`) often leave `dashboard/package-lock.json` modified with re-resolved dep versions (e.g. @cloudflare/workerd) unrelated to the issue. First seen on #30 (2026-10-14). The user said to discard it and restart the loop.
 
-**Why:** the drift is a side effect of verification, not part of the change, and must not go into the PR.
+**Why:** it's a side effect of verification, not part of the change, and must never go into a PR.
 
-**How to apply:** after the tester returns, run `git status --porcelain`. If the only change is `dashboard/package-lock.json` and it isn't in the commit, still stop and report it: the rules forbid discarding on my own. Mention that the user has approved discarding it before. Consider telling the tester not to leave lockfile changes behind.
+**How to apply:** since #31, coder and tester prompts tell the agent to restore it with `git checkout -- dashboard/package-lock.json` if npm changes it, never commit it, and leave the tree clean. This worked on #31, #32 and #41 (the tester restored it once on #41). Still run `git status --porcelain` before Ship. Anything else unexpected in the tree means stopping and reporting.
