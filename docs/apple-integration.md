@@ -153,8 +153,8 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   frame-bridge.
 - **`travel` is optional and not sent in v0.1.** The views use it for "Leave by", but EventKit has no
   public travel-time field. Events without it simply show no leave-by time.
-- **`/api/shopping` returns `{ stores, items }`, not a bare array.** `views/shopping.js` crashes on a
-  `store` id missing from `DATA.stores`, so the stores come from the same config as the item mapping.
+- **`/api/shopping` returns `{ stores, items }`, not a bare array.** The shopping view needs every
+  item's `store` id to exist in `stores`, so the stores come from the same config as the item mapping.
 - **`cat` is an enum** of the dashboard's categories plus `Other`, matching `catOrder` in `data.js`.
 - **Room and zone control, scenes (v0.4.0, additive).** `PUT /api/rooms/{id}` takes the same
   `LightPatch` and works for rooms and zones. It is one Hue `grouped_light` request, so a whole-room
@@ -290,7 +290,8 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
 - Feeds live in Svelte stores (`src/lib/state/`: `calendar`, `shopping`, `weather`, `photos`, plus
   `lights`), fetched through `src/lib/api/frame-bridge.ts`. Each store starts from the `js/data.js`
   mock and, after every successful fetch, replaces the matching `window.DATA` property whole
-  (`events`, `groceries` and `stores`, `weather`, `photos`) and calls `App.emit('data', <prop>)`, so
+  (`events`, `weather`, `photos`; shopping has no vanilla reader left, so `groceries` and `stores`
+  are no longer written) and calls `App.emit('data', <prop>)`, so
   the vanilla views keep working. The mock stays as the fallback when the bridge is unreachable.
 - The four non-light stores are activated once in `src/main.ts` and stay live for the page
   lifetime, because several views and the ambient screen read them. The SSE stream
@@ -300,9 +301,14 @@ Field names follow what `dashboard/js/views/*.js` reads, not the source APIs.
   day, week and month, and the spec allows up to 120 days. Reloads on `calendar` notices and when
   the local day changes.
 - Once a feed has loaded from the bridge (stale counts as loaded), the dashboard hides what the
-  bridge cannot do: the calendar "Add event" button, the photo "Favourite" button, and on shopping
-  the add input and suggestions, quantity steppers and "Clear checked items". Check-off and
-  "Add back" stay, and are optimistic (rolled back with a toast on error).
+  bridge cannot do: the calendar "Add event" button and the photo "Favourite" button. The Svelte
+  Shopping view (`src/views/shopping`) always hides add, suggestions/usuals, quantity steppers and
+  "Clear checked items". Check-off and "Add back" stay (`PATCH` done), and are optimistic (rolled
+  back with a toast on error).
+- Shopping, planned but not specced. A later contract change would need: create
+  (`POST /api/shopping` with `{ name, qty?, store? }`), `qty` in `ShoppingItemPatch`, delete or
+  clear (`DELETE /api/shopping/{id}` or a bulk clear), and a suggestions source
+  (`GET /api/shopping/suggestions`).
 - Lights: the first section of the Svelte Home control view (`src/views/control`) uses
   `/api/lights`, `/api/rooms/{id}`, scene recall and the SSE events, with optimistic updates and
   rollback on error. `control.js` is removed, along with its lock, garage and camera tiles.

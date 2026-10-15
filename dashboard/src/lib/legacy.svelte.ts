@@ -89,7 +89,6 @@ interface LegacyApp {
     el: HTMLElement,
     opts: { layout: string; captions: boolean; interval: number; onChange?: (slide: { photos: unknown[] }) => void },
   ) => Slideshow;
-  setShoppingDone(id: string, done: boolean): void;
   /** True once the feed has loaded from the bridge (also while it is stale). Mock until then. */
   isLive(feed: 'calendar' | 'shopping' | 'weather' | 'photos'): boolean;
 }
@@ -116,13 +115,11 @@ declare global {
 /** Gives the vanilla views the two things they need from the Svelte stores. */
 export function exposeFeeds(): void {
   const stores = { calendar, shopping, weather, photos };
-  window.App.setShoppingDone = (id, done) => void shopping.setDone(id, done);
   window.App.isLive = (feed) => stores[feed].status !== 'mock';
   // An unlabelled 'data' comes from vanilla code editing the mock lists in place. The stores emit
   // with a property name, so this never loops.
   window.App.on('data', (prop) => {
     if (prop !== undefined) return;
-    shopping.syncLegacy();
     calendar.syncLegacy();
   });
 }
