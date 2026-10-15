@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.7.0
-  summary: Calendar, shopping list, lights, weather and photos for the family dashboard.
+  version: 0.8.0
+  summary: Calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
     list through EventKit, talks to the Philips Hue Bridge over its local CLIP v2 API, reads the
@@ -46,6 +46,8 @@ tags:
     description: Forecast from Open-Meteo, fetched and cached by frame-bridge. Read only.
   - name: photos
     description: The "Frame" album and "On this day" photos via PhotoKit. Read only.
+  - name: sonos
+    description: Now playing on one Sonos room via local UPnP. Read only.
   - name: system
     description: Health and live updates.
 
@@ -352,6 +354,73 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
+  /api/nowplaying:
+    get:
+      operationId: getNowPlaying
+      tags: [sonos]
+      summary: Get what is playing on the Sonos room
+      description: |
+        The room named in frame-bridge's config. If the room is grouped, the group's track is
+        returned (read from the group coordinator). frame-bridge polls the speaker about every 5 s
+        while playing and about every 15 s otherwise.
+
+        Display only: there are no play, pause, skip or volume operations, and frame-bridge never
+        sends a write action to Sonos. The dashboard shows the card only when `state` is
+        `playing` and `title` is present.
+      responses:
+        '200':
+          description: The current state of the room.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NowPlaying' }
+              examples:
+                playing:
+                  summary: Playing a track with album art
+                  value: { room: Kitchen, state: playing, title: Example Song, artist: Example Artist, album: Example Album, art: true, source: music }
+                nextTrack:
+                  summary: A second track, without art
+                  value: { room: Kitchen, state: playing, title: Another Song, artist: Another Artist, album: Another Album, art: false, source: music }
+                paused:
+                  summary: Paused
+                  value: { room: Kitchen, state: paused, title: Example Song, artist: Example Artist, album: Example Album, art: true, source: music }
+                tv:
+                  summary: TV audio (no track fields)
+                  value: { room: Kitchen, state: playing, source: tv }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/nowplaying/art:
+    get:
+      operationId: getNowPlayingArt
+      tags: [sonos]
+      summary: Get the album art of the current track, resized for the frame
+      description: |
+        A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). Only art
+        hosted by the speaker (`/getaa`) is served; external art URLs (some radio) mean no art.
+        The response has `Cache-Control: no-cache`, because the image changes per track.
+
+        The dashboard adds a per-track cache-buster query parameter (derived from title, artist
+        and album). The server ignores it.
+      parameters:
+        - name: size
+          in: query
+          required: false
+          description: |
+            `full`: fits in 1280×1280 (the long edge is at most 1280). `half`: fits in 640×640.
+          schema: { type: string, enum: [full, half], default: full }
+      responses:
+        '200':
+          description: The image.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-cache }
+          content:
+            image/jpeg:
+              schema: { type: string, contentMediaType: image/jpeg }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
   /api/events:
     get:
       operationId: streamEvents
@@ -370,6 +439,7 @@ paths:
         | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
         | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
         | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
+        | `nowplaying` | `NowPlaying` | Replace the now playing state in place (sent only when it changes) |
 
         The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
         a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
@@ -421,6 +491,7 @@ paths:
                   lights: { status: error, updatedAt: '2026-10-12T16:41:55-04:00', staleAfterSeconds: 120, detail: Hue Bridge not reachable }
                   weather: { status: ok, updatedAt: '2026-10-12T16:30:00-04:00', staleAfterSeconds: 7200 }
                   photos: { status: ok, updatedAt: '2026-10-12T06:00:00-04:00', staleAfterSeconds: 172800, authorization: authorized }
+                  sonos: { status: ok, updatedAt: '2026-10-12T17:04:30-04:00', staleAfterSeconds: 60 }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
@@ -778,6 +849,11 @@ components:
           properties:
             event: { type: string, const: scene }
             data: { $ref: '#/components/schemas/Scene' }
+        - type: object
+          required: [event, data]
+          properties:
+            event: { type: string, const: nowplaying }
+            data: { $ref: '#/components/schemas/NowPlaying' }
 
     ChangeNotice:
       type: object
@@ -806,7 +882,7 @@ components:
           type: string
           description: |
             Privacy authorization status. EventKit values for calendar and shopping, PhotoKit
-            values (`authorized`, `limited`, ...) for photos. Omitted for lights and weather.
+            values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather and sonos.
           enum: [fullAccess, writeOnly, authorized, limited, denied, restricted, notDetermined]
         detail:
           type: string
@@ -826,12 +902,37 @@ components:
         feeds:
           type: object
           required: [calendar, shopping, lights, weather, photos]
+          description: '`sonos` is optional: bridges without Sonos configured omit it.'
           properties:
             calendar: { $ref: '#/components/schemas/FeedHealth' }
             shopping: { $ref: '#/components/schemas/FeedHealth' }
             lights: { $ref: '#/components/schemas/FeedHealth' }
             weather: { $ref: '#/components/schemas/FeedHealth' }
             photos: { $ref: '#/components/schemas/FeedHealth' }
+            sonos: { $ref: '#/components/schemas/FeedHealth' }
+
+    NowPlaying:
+      type: object
+      required: [room, state]
+      description: |
+        What is playing on the configured Sonos room. Optional fields are omitted when unknown,
+        never `null`. TV and line-in have no track fields. Also the `data` of `nowplaying` events.
+      properties:
+        room:
+          type: string
+          description: The room name from frame-bridge's config.
+        state:
+          type: string
+          enum: [playing, paused, stopped]
+        title: { type: string }
+        artist: { type: string }
+        album: { type: string }
+        art:
+          type: boolean
+          description: True when `/api/nowplaying/art` has an image for this track.
+        source:
+          type: string
+          enum: [music, tv, lineIn]
 
     Weather:
       type: object

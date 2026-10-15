@@ -3,7 +3,7 @@
 Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-10-12,
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
-v0.7.0 (light color and temperature) 2026-10-15.
+v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -14,6 +14,7 @@ Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
 | Weather | Open-Meteo | Read only | `DATA.weather` |
 | Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
+| Now playing | Sonos (local UPnP, one room) | Read only | `DATA.media` (no view reads it yet; the card is a separate issue) |
 
 People's status (`status`, `eta`, `home`) has no real source and is being removed from the UI (see
 [People's status](#peoples-status)). The other mocks (chores, climate, media, cameras, agents) are
@@ -39,6 +40,15 @@ out of scope here.
 - **Photos through PhotoKit, like the Apple TV screensaver:** one album named "Frame" (a regular
   album, or a Shared Album that is never upgraded, see [Photos](#photos-photokit)) plus "On this day" from the whole
   library. The Mac resizes images for the frame.
+- **Sonos now playing is display only, from one room.** No play, pause, skip or volume: frame-bridge
+  never sends a write action to Sonos. If the room is grouped, the group's track is shown, read
+  from the group coordinator.
+- **Sonos over local UPnP (port 1400), not the Sonos cloud API.** The cloud API needs OAuth and
+  internet. Open-Meteo stays frame-bridge's only internet call.
+- **Polling (about 5 s while playing, 15 s otherwise), not GENA subscriptions.** GENA needs an
+  unauthenticated NOTIFY callback route, which breaks "the token middleware covers every route".
+- **Album art only when the speaker hosts it** (`/getaa`). External art URLs (some radio) mean no
+  art, so no extra internet calls.
 
 ### Rejected options and why
 
@@ -96,7 +106,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.7.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.8.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -111,7 +121,9 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/weather` | Today's high/low and 48 hourly temperature, condition and rain-chance values |
 | `GET /api/photos` | The "Frame" album (sampled) plus "On this day" photos |
 | `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
-| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene` (full objects) |
+| `GET /api/nowplaying` | What is playing on the Sonos room: `state`, and `title`, `artist`, `album`, `art`, `source` when known |
+| `GET /api/nowplaying/art?size=full\|half` | The current track's album art as a JPEG, resized on the Mac. `404` when none |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene`, `nowplaying` (full objects) |
 | `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
@@ -145,6 +157,11 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 | `Photo.place` | `location`, reverse-geocoded (`CLGeocoder`) to a short name, cached per asset |
 | `Photo.tag` | same day + within a few km, computed by frame-bridge |
 | `Photo.fav` | `isFavorite` |
+| `NowPlaying.room` | config `room` (ZoneGroupTopology on `host` finds its group coordinator) |
+| `NowPlaying.title` / `artist` / `album` | DIDL-Lite `dc:title` / `dc:creator` / `upnp:album` |
+| `NowPlaying.art` | `upnp:albumArtURI` as a speaker-relative `/getaa` path: `true`. An external URL: `false` |
+| `NowPlaying.state` | `CurrentTransportState`: `PLAYING` → `playing`, `PAUSED_PLAYBACK` → `paused`, `STOPPED` / `NO_MEDIA_PRESENT` → `stopped`. `TRANSITIONING` keeps the last state (no SSE); a first read while `TRANSITIONING` → `playing` |
+| `NowPlaying.source` | track URI scheme: `x-sonos-htastream:` → `tv`, `x-rincon-stream:` → `lineIn`, otherwise `music` |
 
 ### Contract decisions
 
@@ -205,6 +222,12 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   library, so it's a separate decision).
 - **The album is sampled** (300 photos, re-shuffled daily, plus up to 30 "On this day"), so a big
   album doesn't make a big payload.
+- **Sonos now playing (v0.8.0, additive).** `NowPlaying` has no track id: the dashboard builds the
+  art cache-buster from title, artist and album. `art` is a boolean plus a fixed URL
+  (`/api/nowplaying/art`), so the payload stays small. TV and line-in have no track fields. The
+  card shows only when `state` is `playing` and `title` is present. `sonos` is **optional** in
+  `Health.feeds`, so bridges without Sonos configured, and existing bridges, still validate; the
+  dashboard tolerates a missing feed key.
 
 ## Implementation notes
 
@@ -277,6 +300,18 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 - **Empty slideshow:** if `GET /api/photos` is empty while `/healthz` reports `photos` `ok`, open
   Photos on the Mac mini itself (not a phone) and check that "Frame" is still there and opens. If
   not, it was probably upgraded.
+
+### Sonos (local UPnP)
+
+- Config: `sonos: { host, room }`. `host` is the IP of any one speaker (give it a DHCP
+  reservation, e.g. `192.0.2.10`), used to read the group topology. `room` is the name shown.
+- ZoneGroupTopology on `host` finds the group coordinator for `room`. Then AVTransport
+  `GetTransportInfo` and `GetPositionInfo` on the coordinator, at port 1400.
+- Poll about every 5 s while playing, about every 15 s otherwise. Send a `nowplaying` SSE event only
+  when the value changes.
+- Art: fetch the coordinator's `/getaa` path, resize like photos (`full` / `half`), `Cache-Control:
+  no-cache`, `404` when the track has none.
+- Read only: no AVTransport or RenderingControl actions that change anything.
 
 ### Weather (Open-Meteo)
 
@@ -366,7 +401,9 @@ per-phone token.
 5. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
 6. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
    slideshow.
-7. **Hardening:** stale-data indicator, logs, restart on crash
+7. **Sonos:** UPnP read, group coordinator, polling, `/api/nowplaying` and art, `nowplaying` SSE,
+   `sonos` health. The dashboard card is a separate issue.
+8. **Hardening:** stale-data indicator, logs, restart on crash
    (`KeepAlive` in the plist), document setup in this file.
 
 ## Open questions
@@ -389,5 +426,5 @@ per-phone token.
 
 ## Secrets (never commit)
 
-Hue application key, pinned Hue cert, frame tokens, the home coordinates for weather. Keychain (or a config file outside the repo) on
+Hue application key, pinned Hue cert, frame tokens, the home coordinates for weather, the Sonos speaker IP. Keychain (or a config file outside the repo) on
 the Mac; each frame's token lives only on that frame.

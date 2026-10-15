@@ -227,6 +227,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nowplaying": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get what is playing on the Sonos room
+         * @description The room named in frame-bridge's config. If the room is grouped, the group's track is
+         *     returned (read from the group coordinator). frame-bridge polls the speaker about every 5 s
+         *     while playing and about every 15 s otherwise.
+         *
+         *     Display only: there are no play, pause, skip or volume operations, and frame-bridge never
+         *     sends a write action to Sonos. The dashboard shows the card only when `state` is
+         *     `playing` and `title` is present.
+         */
+        get: operations["getNowPlaying"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nowplaying/art": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the album art of the current track, resized for the frame
+         * @description A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). Only art
+         *     hosted by the speaker (`/getaa`) is served; external art URLs (some radio) mean no art.
+         *     The response has `Cache-Control: no-cache`, because the image changes per track.
+         *
+         *     The dashboard adds a per-track cache-buster query parameter (derived from title, artist
+         *     and album). The server ignores it.
+         */
+        get: operations["getNowPlayingArt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -248,6 +299,7 @@ export interface paths {
          *     | `lights` | `ChangeNotice` | Re-fetch `/api/lights` (a light, room/zone or scene was added or removed) |
          *     | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
          *     | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, or the daily re-sample) |
+         *     | `nowplaying` | `NowPlaying` | Replace the now playing state in place (sent only when it changes) |
          *
          *     The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
          *     a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
@@ -479,6 +531,10 @@ export interface components {
             /** @constant */
             event: "scene";
             data: components["schemas"]["Scene"];
+        } | {
+            /** @constant */
+            event: "nowplaying";
+            data: components["schemas"]["NowPlaying"];
         };
         /** @description `data` of `calendar`, `shopping`, `weather`, `photos` and `lights` events: something changed, re-fetch. */
         ChangeNotice: {
@@ -497,7 +553,7 @@ export interface components {
             staleAfterSeconds: number;
             /**
              * @description Privacy authorization status. EventKit values for calendar and shopping, PhotoKit
-             *     values (`authorized`, `limited`, ...) for photos. Omitted for lights and weather.
+             *     values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather and sonos.
              * @enum {string}
              */
             authorization?: "fullAccess" | "writeOnly" | "authorized" | "limited" | "denied" | "restricted" | "notDetermined";
@@ -512,13 +568,32 @@ export interface components {
             status: "ok" | "degraded";
             /** @description frame-bridge's implemented contract version (`info.version`). */
             version: string;
+            /** @description `sonos` is optional: bridges without Sonos configured omit it. */
             feeds: {
                 calendar: components["schemas"]["FeedHealth"];
                 shopping: components["schemas"]["FeedHealth"];
                 lights: components["schemas"]["FeedHealth"];
                 weather: components["schemas"]["FeedHealth"];
                 photos: components["schemas"]["FeedHealth"];
+                sonos?: components["schemas"]["FeedHealth"];
             };
+        };
+        /**
+         * @description What is playing on the configured Sonos room. Optional fields are omitted when unknown,
+         *     never `null`. TV and line-in have no track fields. Also the `data` of `nowplaying` events.
+         */
+        NowPlaying: {
+            /** @description The room name from frame-bridge's config. */
+            room: string;
+            /** @enum {string} */
+            state: "playing" | "paused" | "stopped";
+            title?: string;
+            artist?: string;
+            album?: string;
+            /** @description True when `/api/nowplaying/art` has an image for this track. */
+            art?: boolean;
+            /** @enum {string} */
+            source?: "music" | "tv" | "lineIn";
         };
         /**
          * @description Hourly arrays for today and tomorrow, local time. Index `i` is the hour starting at `start`
@@ -1325,6 +1400,55 @@ export interface operations {
             503: components["responses"]["SourceUnavailable"];
         };
     };
+    getNowPlaying: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current state of the room. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NowPlaying"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
+    getNowPlayingArt: {
+        parameters: {
+            query?: {
+                /** @description `full`: fits in 1280×1280 (the long edge is at most 1280). `half`: fits in 640×640. */
+                size?: "full" | "half";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
     streamEvents: {
         parameters: {
             query?: never;
@@ -1405,6 +1529,11 @@ export interface operations {
                      *           "updatedAt": "2026-10-12T06:00:00-04:00",
                      *           "staleAfterSeconds": 172800,
                      *           "authorization": "authorized"
+                     *         },
+                     *         "sonos": {
+                     *           "status": "ok",
+                     *           "updatedAt": "2026-10-12T17:04:30-04:00",
+                     *           "staleAfterSeconds": 60
                      *         }
                      *       }
                      *     }
