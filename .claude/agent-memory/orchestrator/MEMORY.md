@@ -1,1 +1,0 @@
-- [Tester lockfile drift](tester-lockfile-drift.md) — npm steps dirty package-lock.json; prompts tell agents to restore it, user approved
