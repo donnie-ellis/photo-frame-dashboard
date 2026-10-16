@@ -4,6 +4,7 @@ import '../js/main.js';
 import { mount } from 'svelte';
 import { Toaster } from './lib/ui';
 import { registerView, exposeFeeds } from './lib/legacy.svelte';
+import { people } from './lib/state/people.svelte';
 import { calendar } from './lib/state/calendar.svelte';
 import { shopping } from './lib/state/shopping.svelte';
 import { weather } from './lib/state/weather.svelte';
@@ -24,7 +25,7 @@ registerView('photos', Photos);
 mountAmbientSlideshow();
 exposeFeeds();
 // These feeds feed several views (and the ambient screen), so they stay live for the page lifetime.
-for (const feed of [calendar, shopping, weather, photos]) feed.activate();
+for (const feed of [people, calendar, shopping, weather, photos]) feed.activate();
 mount(Toaster, { target: document.getElementById('stage')! });
 startUpdateWatch();
 

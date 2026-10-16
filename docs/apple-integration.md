@@ -4,12 +4,13 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
 | Feed | Source | Access | Replaces |
 | --- | --- | --- | --- |
+| People | frame-bridge config | Read only | `DATA.people` |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
 | Shopping list | Apple Reminders, "Shopping" list | Read + check off | `DATA.groceries`, `DATA.stores` |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
@@ -116,11 +117,12 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.10.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.11.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /api/people` | People (id, name, colours) in lane order, from config |
 | `GET /api/calendar?from&to` | Events overlapping a range (max 120 days), recurring events expanded |
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
 | `PATCH /api/shopping/{id}` | `{ done }`: check off or un-check a reminder |
@@ -142,6 +144,7 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 
 | Dashboard | Source |
 | --- | --- |
+| `Person.id`, `name`, `color`, `night` | frame-bridge config `people` section (no Apple source). `rgb`, `ink` and a missing `night` are computed by the dashboard |
 | `Event.id` | `EKEvent.eventIdentifier` + `:` + `occurrenceDate` (ISO 8601) |
 | `Event.loc` | `EKEvent.location` |
 | `Event.notes` | `EKEvent.notes` |
@@ -247,6 +250,15 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   until computed or when nothing was found (the dashboard keeps its default crop). The dashboard
   only moves the crop (`object-position`) and clamps the Ken Burns drift so the box stays in view;
   it never zooms past `cover`.
+
+- **People from config (v0.11.0, additive).** People come from frame-bridge's config so the ids on
+  `Event.people` and in `GET /api/people` cannot drift apart, and real names stay out of git. The wire
+  carries `id`, `name`, `color` and an optional `night` colour only: `rgb` and `ink` are derived by
+  the dashboard (`src/lib/state/people.svelte.ts`). `family` stays a dashboard constant. There is no
+  SSE event and no `/healthz` entry: people change only with a config change, which needs a bridge
+  restart, and the dashboard re-fetches on page load and on the fallback poll. If the fetch fails, the
+  neutral placeholders in `data.js` ("Person 1" to "Person 4") stay, and a later failed poll keeps
+  the live list.
 
 ## Implementation notes
 
@@ -417,7 +429,7 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 - Photo focus: `Crop.svelte` and `focus.ts` (`src/views/photos/`) set `object-position` from
   `Photo.focus` for cover crops (single, pair, collage, polaroid). Portrait singles (`.ss-fit`,
   contain) don't crop. The Ken Burns drift is clamped to keep the focus in view.
-- The person ids in `js/data.js` are placeholders and must match frame-bridge's people config.
+- People come from `GET /api/people` (`src/lib/state/people.svelte.ts`). The people in `js/data.js` are neutral fallbacks.
 - Target WebView 106: no syntax newer than what `dashboard/vite.config.js` already targets.
 
 ### People's status
@@ -446,8 +458,7 @@ per-phone token.
 
 ## Open questions
 
-- Which calendars to show, and the calendar → person mapping. The spec examples use the mock person
-  ids (`maya`, `jordan`, ...). Real ids replace the mock family in `data.js`.
+- Which calendars to show. The calendar → person mapping lives in the bridge's `people` config.
 - Category/store strategy for shopping items. The contract assumes the server-side keyword map;
   the list of stores is still open.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.

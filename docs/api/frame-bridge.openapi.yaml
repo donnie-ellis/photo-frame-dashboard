@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.10.0
-  summary: Calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
+  version: 0.11.0
+  summary: People, calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
     list through EventKit, talks to the Philips Hue Bridge over its local CLIP v2 API, reads the
@@ -36,6 +36,8 @@ servers:
 security:
   - frameToken: []
 tags:
+  - name: people
+    description: Family members, from frame-bridge's config. Read only.
   - name: calendar
     description: Apple Calendar via EventKit. Read only.
   - name: shopping
@@ -54,6 +56,38 @@ tags:
     description: Health and live updates.
 
 paths:
+  /api/people:
+    get:
+      operationId: listPeople
+      tags: [people]
+      summary: List the family members
+      description: |
+        The people from frame-bridge's config, in config order. The dashboard uses that order for
+        lanes and avatars. The `family` pseudo-person is a dashboard constant and is not returned;
+        a "Family" calendar maps to every id in this list (see `Event.people`).
+
+        There is no SSE event and no `/healthz` entry for people: they only change with a config
+        change, which needs a bridge restart. The dashboard re-fetches on page load and on its
+        fallback poll after the stream drops.
+
+        Returns `503` (`source_unavailable`, detail `not configured`) when the config has no people.
+      responses:
+        '200':
+          description: The people, at least one.
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 1
+                items: { $ref: '#/components/schemas/Person' }
+              example:
+                - { id: alex, name: Alex, color: '#2d5bff', night: '#7d93e0' }
+                - { id: jordan, name: Jordan, color: '#e4007c', night: '#e070a8' }
+                - { id: maya, name: Maya, color: '#00a36c' }
+                - { id: otto, name: Otto, color: '#ffb000' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
   /api/calendar:
     get:
       operationId: listEvents
@@ -573,7 +607,7 @@ components:
       description: |
         The source behind this feed is unavailable: EventKit or Photos access not granted,
         Reminders list or "Frame" album missing, Hue Bridge unreachable, or no forecast fetched
-        yet. The dashboard keeps showing what it had.
+        yet, or no people configured. The dashboard keeps showing what it had.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -594,9 +628,29 @@ components:
     PersonId:
       type: string
       description: |
-        A person id from the dashboard's `DATA.people`. frame-bridge maps calendar names to person
-        ids in its config.
+        A `Person.id` from `GET /api/people` (frame-bridge config). `Event.people` uses the same ids.
       examples: [jordan]
+
+    Person:
+      type: object
+      description: |
+        One family member. The dashboard derives the text colour on the person's colour (`ink`) and
+        the `rgb` triplets itself, so they are not sent.
+      required: [id, name, color]
+      properties:
+        id: { $ref: '#/components/schemas/PersonId' }
+        name:
+          type: string
+          minLength: 1
+          description: Display name. The dashboard uses its first character as the avatar.
+        color:
+          type: string
+          pattern: '^#[0-9a-f]{6}$'
+          description: Day colour, lowercase sRGB hex.
+        night:
+          type: string
+          pattern: '^#[0-9a-f]{6}$'
+          description: Night-mode colour, same format. Omitted when the dashboard should derive it from `color`.
 
     Event:
       type: object

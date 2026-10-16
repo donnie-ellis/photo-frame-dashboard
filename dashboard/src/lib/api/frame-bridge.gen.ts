@@ -4,6 +4,34 @@
  */
 
 export interface paths {
+    "/api/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the family members
+         * @description The people from frame-bridge's config, in config order. The dashboard uses that order for
+         *     lanes and avatars. The `family` pseudo-person is a dashboard constant and is not returned;
+         *     a "Family" calendar maps to every id in this list (see `Event.people`).
+         *
+         *     There is no SSE event and no `/healthz` entry for people: they only change with a config
+         *     change, which needs a bridge restart. The dashboard re-fetches on page load and on its
+         *     fallback poll after the stream drops.
+         *
+         *     Returns `503` (`source_unavailable`, detail `not configured`) when the config has no people.
+         */
+        get: operations["listPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/calendar": {
         parameters: {
             query?: never;
@@ -349,11 +377,23 @@ export interface components {
             detail?: string;
         };
         /**
-         * @description A person id from the dashboard's `DATA.people`. frame-bridge maps calendar names to person
-         *     ids in its config.
+         * @description A `Person.id` from `GET /api/people` (frame-bridge config). `Event.people` uses the same ids.
          * @example jordan
          */
         PersonId: string;
+        /**
+         * @description One family member. The dashboard derives the text colour on the person's colour (`ink`) and
+         *     the `rgb` triplets itself, so they are not sent.
+         */
+        Person: {
+            id: components["schemas"]["PersonId"];
+            /** @description Display name. The dashboard uses its first character as the avatar. */
+            name: string;
+            /** @description Day colour, lowercase sRGB hex. */
+            color: string;
+            /** @description Night-mode colour, same format. Omitted when the dashboard should derive it from `color`. */
+            night?: string;
+        };
         /** @description One calendar event, or one occurrence of a recurring event. */
         Event: {
             /**
@@ -732,7 +772,7 @@ export interface components {
         /**
          * @description The source behind this feed is unavailable: EventKit or Photos access not granted,
          *     Reminders list or "Frame" album missing, Hue Bridge unreachable, or no forecast fetched
-         *     yet. The dashboard keeps showing what it had.
+         *     yet, or no people configured. The dashboard keeps showing what it had.
          */
         SourceUnavailable: {
             headers: {
@@ -765,6 +805,54 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listPeople: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The people, at least one. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "id": "alex",
+                     *         "name": "Alex",
+                     *         "color": "#2d5bff",
+                     *         "night": "#7d93e0"
+                     *       },
+                     *       {
+                     *         "id": "jordan",
+                     *         "name": "Jordan",
+                     *         "color": "#e4007c",
+                     *         "night": "#e070a8"
+                     *       },
+                     *       {
+                     *         "id": "maya",
+                     *         "name": "Maya",
+                     *         "color": "#00a36c"
+                     *       },
+                     *       {
+                     *         "id": "otto",
+                     *         "name": "Otto",
+                     *         "color": "#ffb000"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["Person"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
     listEvents: {
         parameters: {
             query: {
