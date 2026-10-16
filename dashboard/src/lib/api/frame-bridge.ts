@@ -2,6 +2,7 @@
 // generated file; relative /api paths work because the bridge serves the page (Vite proxies in dev).
 import type { components } from './frame-bridge.gen';
 
+export type ApiPerson = components['schemas']['Person'];
 export type Light = components['schemas']['Light'];
 export type Room = components['schemas']['Room'];
 export type Scene = components['schemas']['Scene'];
@@ -52,6 +53,7 @@ function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | RoomP
   });
 }
 
+export const listPeople = () => request<ApiPerson[]>('/api/people');
 export const listLights = () => request<LightsState>('/api/lights');
 export const setLight = (id: string, patch: LightPatch) =>
   send<Light>('PUT', '/api/lights/' + encodeURIComponent(id), patch);
