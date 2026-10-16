@@ -97,6 +97,58 @@ export interface paths {
         patch: operations["setShoppingItem"];
         trace?: never;
     };
+    "/api/chores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the chores
+         * @description Chores from the per-person Reminders lists: open chores due by the end of today (overdue
+         *     ones included), open chores with no due date, and chores completed today (`done: true`).
+         *     Chores due on a later day are left out. Sorted by person, in `/api/people` order, then by
+         *     due time. A chore is overdue when `due` is before now and `done` is false: there is no
+         *     separate flag. `setChore` writes `done`.
+         */
+        get: operations["listChores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chores/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Check a chore off or un-check it
+         * @description Sets `EKReminder.isCompleted` from `done`, then saves. Only reminders in the configured
+         *     chore lists can be changed: any other id gets `404`. After the save the bridge sends a
+         *     `chores` `ChangeNotice` on `/api/events`.
+         *
+         *     The response is the chore as it now appears in the feed. For a recurring chore, checking
+         *     it off can give a different `id` from the one in the path, so the client replaces the
+         *     chore it patched (by the path id) with the response, and sends the undo (`done: false`)
+         *     to the response `id`. Un-checking a recurring chore restores the original, so the response
+         *     to that undo is the original chore, open, with its original `id` and `due`.
+         */
+        patch: operations["setChore"];
+        trace?: never;
+    };
     "/api/lights": {
         parameters: {
             query?: never;
@@ -321,6 +373,7 @@ export interface paths {
          *     | --- | --- | --- |
          *     | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
          *     | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
+         *     | `chores` | `ChangeNotice` | Re-fetch `/api/chores` |
          *     | `light` | `Light` | Replace that light in place |
          *     | `room` | `Room` | Replace that room or zone in place |
          *     | `scene` | `Scene` | Replace that scene in place |
@@ -464,6 +517,33 @@ export interface components {
             /** @description `true` checks the item off, `false` un-checks it. */
             done: boolean;
         };
+        ChoreList: {
+            chores: components["schemas"]["Chore"][];
+        };
+        Chore: {
+            /** @description The reminder's `calendarItemIdentifier`. */
+            id: string;
+            /** @description A `Person.id`, the person whose chore list holds the reminder. */
+            who: string;
+            /** @description The reminder title. */
+            title: string;
+            /** @description Completed. Completed chores are only included for today. */
+            done: boolean;
+            /**
+             * Format: date-time
+             * @description Due date, with a UTC offset. An all-day chore (a date with no time) is local midnight
+             *     of that day. Omitted when the reminder has no due date.
+             */
+            due?: string;
+            /** @description `true` only when the reminder has a due date but no time. Omitted otherwise. */
+            allDay?: boolean;
+            /** @description Reminder notes. Omitted when empty. */
+            notes?: string;
+        };
+        ChorePatch: {
+            /** @description `true` checks the chore off, `false` un-checks it. */
+            done: boolean;
+        };
         LightsState: {
             /** @description Hue rooms and zones, told apart by `kind`. */
             rooms: components["schemas"]["Room"][];
@@ -557,7 +637,7 @@ export interface components {
         /** @description One SSE message: `event` is the SSE `event:` line, `data` is the JSON on the `data:` line. */
         ServerEvent: {
             /** @enum {string} */
-            event: "calendar" | "shopping" | "weather" | "photos" | "lights";
+            event: "calendar" | "shopping" | "chores" | "weather" | "photos" | "lights";
             data: components["schemas"]["ChangeNotice"];
         } | {
             /** @constant */
@@ -576,7 +656,7 @@ export interface components {
             event: "nowplaying";
             data: components["schemas"]["NowPlaying"];
         };
-        /** @description `data` of `calendar`, `shopping`, `weather`, `photos` and `lights` events: something changed, re-fetch. */
+        /** @description `data` of `calendar`, `shopping`, `chores`, `weather`, `photos` and `lights` events: something changed, re-fetch. */
         ChangeNotice: {
             /** Format: date-time */
             changedAt: string;
@@ -592,7 +672,7 @@ export interface components {
             /** @description How old `updatedAt` may get before the dashboard shows the feed as stale. */
             staleAfterSeconds: number;
             /**
-             * @description Privacy authorization status. EventKit values for calendar and shopping, PhotoKit
+             * @description Privacy authorization status. EventKit values for calendar, shopping and chores, PhotoKit
              *     values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather and sonos.
              * @enum {string}
              */
@@ -612,6 +692,7 @@ export interface components {
             feeds: {
                 calendar: components["schemas"]["FeedHealth"];
                 shopping: components["schemas"]["FeedHealth"];
+                chores: components["schemas"]["FeedHealth"];
                 lights: components["schemas"]["FeedHealth"];
                 weather: components["schemas"]["FeedHealth"];
                 photos: components["schemas"]["FeedHealth"];
@@ -796,6 +877,8 @@ export interface components {
         SceneId: string;
         /** @description A `ShoppingItem.id`. Percent-encode it in the path, because the ids contain `://` and `/`. */
         ShoppingItemId: string;
+        /** @description A `Chore.id`. Percent-encode it in the path, because the ids contain `://` and `/`. */
+        ChoreId: string;
         /** @description A `Light.id`. */
         LightId: string;
     };
@@ -1024,6 +1107,109 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["ShoppingItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
+    listChores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chores. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "chores": [
+                     *         {
+                     *           "id": "x-apple-reminder://c001",
+                     *           "who": "alex",
+                     *           "title": "Take out the bins",
+                     *           "done": false,
+                     *           "due": "2026-10-11T18:00:00-04:00"
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c002",
+                     *           "who": "jordan",
+                     *           "title": "Water the plants",
+                     *           "done": false,
+                     *           "due": "2026-10-12T00:00:00-04:00",
+                     *           "allDay": true
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c003",
+                     *           "who": "maya",
+                     *           "title": "Tidy your room",
+                     *           "done": false,
+                     *           "notes": "Floor and desk."
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c004",
+                     *           "who": "otto",
+                     *           "title": "Feed the fish",
+                     *           "done": true,
+                     *           "due": "2026-10-12T08:00:00-04:00"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ChoreList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
+    setChore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A `Chore.id`. Percent-encode it in the path, because the ids contain `://` and `/`. */
+                id: components["parameters"]["ChoreId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "done": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["ChorePatch"];
+            };
+        };
+        responses: {
+            /** @description The chore after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "x-apple-reminder://c001",
+                     *       "who": "alex",
+                     *       "title": "Take out the bins",
+                     *       "done": true,
+                     *       "due": "2026-10-11T18:00:00-04:00"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Chore"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1636,6 +1822,12 @@ export interface operations {
                      *           "authorization": "fullAccess"
                      *         },
                      *         "shopping": {
+                     *           "status": "ok",
+                     *           "updatedAt": "2026-10-12T17:04:11-04:00",
+                     *           "staleAfterSeconds": 300,
+                     *           "authorization": "fullAccess"
+                     *         },
+                     *         "chores": {
                      *           "status": "ok",
                      *           "updatedAt": "2026-10-12T17:04:11-04:00",
                      *           "staleAfterSeconds": 300,
