@@ -6,6 +6,8 @@
   let layout = $state('single');
   let mode = $state<'heat' | 'cool' | 'off'>('heat');
   let picked = $state<string[]>(['Produce']);
+  let who = $state<string | null>(null);
+  const folks = window.DATA.people.slice(0, 3);
   let sheetOpen = $state(false);
   let wideOpen = $state(false);
   let unlocked = $state(0);
@@ -97,6 +99,18 @@
         <Chip selected={picked.includes(c)} onclick={() => togglePick(c)}>{c}</Chip>
       {/each}
       <Chip ghost>Ghost</Chip>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="label">Chip · person · {who ?? 'everyone'}</h2>
+    <div class="row">
+      <Chip tall selected={who === null} onclick={() => (who = null)}>Everyone</Chip>
+      {#each folks as p (p.id)}
+        <Chip tint={window.App.pstyle(p)} selected={who === p.id} onclick={() => (who = p.id)}>
+          <span class="who"><b>{p.name}</b><small>3 to do</small></span>
+        </Chip>
+      {/each}
     </div>
   </section>
 
@@ -234,5 +248,7 @@
   .pad { padding: 34px 36px 32px; }
   .sheet-title { font-size: 52px; line-height: 1; margin: 6px 0 22px; }
   p { color: var(--ink-2); }
+  .who { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+  .who small { font-size: var(--fs-min); font-weight: 700; opacity: 0.85; }
   .actions { justify-content: flex-end; margin-top: 26px; }
 </style>

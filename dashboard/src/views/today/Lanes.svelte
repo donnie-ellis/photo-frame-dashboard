@@ -3,7 +3,7 @@
   // each minute and when the events or chores change. Chores check off in place.
   import { pressable, Icon } from '../../lib/ui';
   import { calendar } from '../../lib/state/calendar.svelte';
-  import { chores, choreState, compareChores } from '../../lib/state/chores.svelte';
+  import { chores, isDueNow, compareChores } from '../../lib/state/chores.svelte';
   import { openEvent } from '../calendar/openEvent.svelte';
   import ChoreRow from '../chores/ChoreRow.svelte';
 
@@ -18,7 +18,7 @@
       const evs = App.timedOn(now, p.id).filter((e) => +e.end > +now);
       // A just-checked chore stays (dimmed) while its write is pending.
       const chs = chores.list
-        .filter((c) => c.who === p.id && (['overdue', 'today'].includes(choreState(c, now)) || chores.pending.has(c.id)))
+        .filter((c) => c.who === p.id && (isDueNow(c, now) || chores.pending.has(c.id)))
         .sort((a, b) => compareChores(a, b, now));
       let ne = evs.length;
       let nc = chs.length;
