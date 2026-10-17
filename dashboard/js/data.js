@@ -129,6 +129,31 @@ window.DATA = (function () {
     chore('otto', 'Tidy the Lego', false)
   ];
 
+  // Same shape as GET /api/chores/upcoming: days 1..6 ahead, read-only.
+  var uid = 0;
+  function up(who, title, d, hm, extra) {
+    return Object.assign({ id: 'u' + (++uid), who: who, title: title, due: at(d, hm) }, extra || {});
+  }
+  var upcomingChores = [
+    up('alex', 'Take out recycling', 2, '00:00', { allDay: true }),
+    up('alex', 'Mow the lawn', 3, '10:00'),
+    up('alex', 'Service the car', 5, '09:00', { notes: 'Booked at the garage on Elm St.' }),
+    up('jordan', 'Run dishwasher', 1, '20:00'),
+    up('jordan', 'Run dishwasher', 4, '20:00'),
+    up('jordan', 'Water the plants', 2, '00:00', { allDay: true }),
+    up('jordan', 'Fold laundry', 3, '00:00', { allDay: true }),
+    up('jordan', 'Order groceries', 3, '18:00'),
+    up('jordan', 'Clean the oven', 6, '11:00'),
+    up('maya', 'Homework', 1, '17:30'),
+    up('maya', 'Pack soccer bag', 2, '07:30'),
+    up('maya', 'Piano lesson', 4, '16:00'),
+    up('maya', 'Library books', 6, '00:00', { allDay: true }),
+    up('otto', 'Practice piano', 1, '18:00'),
+    up('otto', 'Practice piano', 2, '18:00'),
+    up('otto', 'Read for 20 min', 5, '00:00', { allDay: true }),
+    up('otto', 'Tidy the Lego', 6, '15:00')
+  ];
+
   // ---------------------------------------------------------------- shopping
   var stores = [{ id: 'grocer', name: 'FreshCo' }, { id: 'costco', name: 'Costco' }];
   var catOrder = {
@@ -313,6 +338,7 @@ window.DATA = (function () {
     people: people, family: family, ALL: ALL,
     events: events, busyExtras: busyExtras,
     chores: chores,
+    upcomingChores: upcomingChores,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,
     weather: weather, photos: photos, agents: agents,

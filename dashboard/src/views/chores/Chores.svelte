@@ -2,12 +2,15 @@
   // Chores from Reminders: one lane per person. Overdue first, then today, then undated, done last.
   // Tap to check off (undo toast). Adding chores and stars have no contract endpoint.
   import type { ViewProps } from '../../lib/legacy.svelte';
-  import { Chip, StaleBadge } from '../../lib/ui';
+  import { Chip, Segmented, StaleBadge } from '../../lib/ui';
   import { fade } from 'svelte/transition';
   import { chores, compareChores, isDueNow } from '../../lib/state/chores.svelte';
   import { people } from '../../lib/state/people.svelte';
   import { personFilter } from '../../lib/state/personFilter.svelte';
+  import { upcoming } from '../../lib/state/upcoming.svelte';
   import ChoreRow from './ChoreRow.svelte';
+  import Week from './Week.svelte';
+  import DaySheet from './DaySheet.svelte';
 
   let { active }: ViewProps = $props();
   const App = window.App;
@@ -27,9 +30,25 @@
     };
   });
 
-  // Back to Everyone when the view is left.
+  let mode = $state<'today' | 'week'>('today');
+  let pick = $state.raw<{ pid: string; day: number } | null>(null);
+
+  // Back to Everyone, Today mode, when the view is left.
   $effect(() => {
-    if (!active) personFilter.reset();
+    if (!active) {
+      personFilter.reset();
+      mode = 'today';
+    }
+  });
+
+  // The upcoming feed is only fetched while Week shows.
+  $effect(() => {
+    if (!active || mode !== 'week') {
+      pick = null;
+      return;
+    }
+    upcoming.activate();
+    return () => upcoming.deactivate();
   });
 
   // Chores whose person isn't in the people list have no lane and are left out.
@@ -44,6 +63,7 @@
       };
     }),
   );
+  const weekStatus = $derived(chores.status === 'stale' || upcoming.status === 'stale' ? 'stale' : upcoming.status);
   const person = $derived(personFilter.person);
   const shown = $derived(person ? lanes.filter((l) => l.p.id === person.id) : lanes);
   const total = $derived(shown.reduce((n, l) => n + l.rows.length, 0));
@@ -53,7 +73,7 @@
 <div class="chr">
   <header class="chr-head">
     <div class="chr-title">
-      <div class="label">Today</div>
+      <div class="label">{mode === 'week' ? 'This week' : 'Today'}</div>
       {#if person}
         <h1 class="serif chr-who" style={App.pstyle(person)}>{person.name}’s chores</h1>
       {:else}
@@ -61,7 +81,13 @@
       {/if}
     </div>
     <div class="chr-count"><span class="num">{open}</span> to do · {total - open} done</div>
-    <StaleBadge status={chores.status} />
+    <Segmented
+      options={[
+        { value: 'today', label: 'Today' },
+        { value: 'week', label: 'Week' },
+      ]}
+      bind:value={mode} />
+    <StaleBadge status={mode === 'week' ? weekStatus : chores.status} />
   </header>
 
   <div class="chr-chips">
@@ -73,6 +99,12 @@
     {/each}
   </div>
 
+  {#if mode === 'week'}
+    {#key person?.id ?? 'all'}
+      <Week {now} {person} onpick={(pid, day) => (pick = { pid, day })} />
+    {/key}
+    <DaySheet {pick} {now} onclose={() => (pick = null)} />
+  {:else}
   {#key person?.id ?? 'all'}
     <div class="chr-lanes" style:--cols={shown.length} in:fade={{ duration: 180 }}>
       {#each shown as lane (lane.p.id)}
@@ -92,6 +124,7 @@
       {/each}
     </div>
   {/key}
+  {/if}
 </div>
 
 <style>

@@ -10,7 +10,7 @@ import { Freshness, watchHealth, type FeedStatus } from './feed.svelte';
 export type ChoreItem = Omit<Chore, 'due'> & { due?: Date };
 export type ChoreState = 'overdue' | 'today' | 'done' | 'undated';
 
-function dayStart(d: Date): number {
+export function dayStart(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
