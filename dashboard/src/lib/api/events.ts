@@ -14,7 +14,7 @@ export function connected(): boolean {
   return source !== null && source.readyState === EventSource.OPEN;
 }
 
-/** Subscribe to an SSE event by name (`light`, `room`, `scene`, `lights`, `calendar`, `shopping`, `weather`, `photos`, `nowplaying`). Returns an unsubscribe function. */
+/** Subscribe to an SSE event by name (`light`, `room`, `scene`, `lights`, `calendar`, `shopping`, `chores`, `weather`, `photos`, `nowplaying`). Returns an unsubscribe function. */
 export function on(name: string, fn: Handler): () => void {
   let set = handlers.get(name);
   if (!set) handlers.set(name, (set = new Set()));
@@ -56,7 +56,7 @@ export function start(): void {
   }
   const es = new EventSource('/api/events');
   source = es;
-  for (const name of ['light', 'room', 'scene', 'lights', 'calendar', 'shopping', 'weather', 'photos', 'nowplaying']) {
+  for (const name of ['light', 'room', 'scene', 'lights', 'calendar', 'shopping', 'chores', 'weather', 'photos', 'nowplaying']) {
     es.addEventListener(name, (e) => dispatch(name, e as MessageEvent));
   }
   es.onopen = () => {

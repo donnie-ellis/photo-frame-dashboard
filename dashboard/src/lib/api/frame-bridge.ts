@@ -17,6 +17,9 @@ export type ShoppingItem = components['schemas']['ShoppingItem'];
 export type ShoppingItemPatch = components['schemas']['ShoppingItemPatch'];
 export type ShoppingList = components['schemas']['ShoppingList'];
 export type Store = components['schemas']['Store'];
+export type Chore = components['schemas']['Chore'];
+export type ChoreList = components['schemas']['ChoreList'];
+export type ChorePatch = components['schemas']['ChorePatch'];
 export type Weather = components['schemas']['Weather'];
 export type WeatherCondition = components['schemas']['WeatherCondition'];
 export type Photo = components['schemas']['Photo'];
@@ -45,7 +48,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | RoomPatch | ShoppingItemPatch): Promise<T> {
+function send<T>(method: 'PUT' | 'PATCH', path: string, body: LightPatch | RoomPatch | ShoppingItemPatch | ChorePatch): Promise<T> {
   return request<T>(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -83,6 +86,9 @@ export const listEvents = (from: Date, to: Date) =>
 export const getShoppingList = () => request<ShoppingList>('/api/shopping');
 export const setShoppingItem = (id: string, patch: ShoppingItemPatch) =>
   send<ShoppingItem>('PATCH', '/api/shopping/' + encodeURIComponent(id), patch);
+export const listChores = () => request<ChoreList>('/api/chores');
+export const setChore = (id: string, patch: ChorePatch) =>
+  send<Chore>('PATCH', '/api/chores/' + encodeURIComponent(id), patch);
 export const getWeather = () => request<Weather>('/api/weather');
 export const listPhotos = () => request<Photo[]>('/api/photos');
 export const photoUrl = (id: string, size: 'full' | 'half' = 'full') =>
