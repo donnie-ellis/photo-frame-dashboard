@@ -20,6 +20,8 @@ export type Store = components['schemas']['Store'];
 export type Chore = components['schemas']['Chore'];
 export type ChoreList = components['schemas']['ChoreList'];
 export type ChorePatch = components['schemas']['ChorePatch'];
+export type UpcomingChore = components['schemas']['UpcomingChore'];
+export type UpcomingChoreList = components['schemas']['UpcomingChoreList'];
 export type Weather = components['schemas']['Weather'];
 export type WeatherCondition = components['schemas']['WeatherCondition'];
 export type Photo = components['schemas']['Photo'];
@@ -89,6 +91,7 @@ export const setShoppingItem = (id: string, patch: ShoppingItemPatch) =>
 export const listChores = () => request<ChoreList>('/api/chores');
 export const setChore = (id: string, patch: ChorePatch) =>
   send<Chore>('PATCH', '/api/chores/' + encodeURIComponent(id), patch);
+export const listUpcomingChores = () => request<UpcomingChoreList>('/api/chores/upcoming');
 export const getWeather = () => request<Weather>('/api/weather');
 export const listPhotos = () => request<Photo[]>('/api/photos');
 export const photoUrl = (id: string, size: 'full' | 'half' = 'full') =>
