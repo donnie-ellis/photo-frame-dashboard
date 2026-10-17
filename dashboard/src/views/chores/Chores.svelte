@@ -12,10 +12,9 @@
 
   let now = $state.raw(App.now());
 
-  // Live only while shown: the feed, and a minute tick so "overdue" tracks the clock.
+  // A minute tick while shown, so "overdue" tracks the clock. The feed itself is live from main.ts.
   $effect(() => {
     if (!active) return;
-    chores.activate();
     const tick = () => (now = App.now());
     tick();
     App.on('minute', tick);
@@ -23,7 +22,6 @@
     return () => {
       App.off('minute', tick);
       App.off('time', tick);
-      chores.deactivate();
     };
   });
 

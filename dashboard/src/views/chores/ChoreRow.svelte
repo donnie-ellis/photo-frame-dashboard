@@ -3,7 +3,7 @@
   import { Icon, pressable } from '../../lib/ui';
   import { chores, choreState, type ChoreItem } from '../../lib/state/chores.svelte';
 
-  let { chore, now, pending }: { chore: ChoreItem; now: Date; pending: boolean } = $props();
+  let { chore, now, pending, compact = false }: { chore: ChoreItem; now: Date; pending: boolean; compact?: boolean } = $props();
 
   const state = $derived(choreState(chore, now));
   const when = $derived(
@@ -23,13 +23,14 @@
   class:is-today={state === 'today'}
   class:is-done={state === 'done'}
   class:is-pending={pending}
+  class:is-compact={compact}
   onclick={() => chores.toggle(chore.id)}
   {@attach pressable}>
   <span class="chr-box"><Icon name="check" size={22} /></span>
   <span class="chr-text">
     <b>{chore.title}</b>
     {#if when}<small class="chr-when">{when}</small>{/if}
-    {#if chore.notes}<small class="chr-notes">{chore.notes}</small>{/if}
+    {#if chore.notes && !compact}<small class="chr-notes">{chore.notes}</small>{/if}
   </span>
 </button>
 
@@ -76,4 +77,10 @@
   .chr-text .chr-when { font-variant-numeric: tabular-nums; }
   .chr-row.is-overdue .chr-when { color: var(--alert); font-weight: 800; }
   .chr-text .chr-notes { font-weight: 500; }
+
+  /* Today lanes: one fixed-height line of title (plus when), no notes. */
+  .chr-row.is-compact { height: var(--tap); padding: 0 10px 0 8px; gap: 8px; overflow: hidden; }
+  .chr-row.is-compact .chr-box { width: 28px; height: 28px; box-shadow: inset 0 0 0 2px var(--line); }
+  .chr-row.is-compact .chr-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+  .chr-row.is-compact .chr-text small { white-space: nowrap; line-height: 1.1; }
 </style>
