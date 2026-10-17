@@ -4,7 +4,7 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -13,13 +13,14 @@ Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 | People | frame-bridge config | Read only | `DATA.people` |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
 | Shopping list | Apple Reminders, "Shopping" list | Read + check off | `DATA.groceries`, `DATA.stores` |
+| Chores | Apple Reminders, one list per person (frame-bridge config) | Read + check off | `DATA.chores` (routines, stars, week, Anyone lane and who-did-it dropped) |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
 | Weather | Open-Meteo | Read only | `DATA.weather` |
 | Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
 | Now playing | Sonos (local UPnP, one room) | Read only | `DATA.media` (no view reads it yet; the card is a separate issue) |
 
 People's status (`status`, `eta`, `home`) has no real source and is being removed from the UI (see
-[People's status](#peoples-status)). The other mocks (chores, climate, media, cameras, agents) are
+[People's status](#peoples-status)). The other mocks (climate, media, cameras, agents) are
 out of scope here.
 
 ## Decisions
@@ -80,6 +81,7 @@ Mac mini: frame-bridge (Swift, LaunchAgent, <mac-ip>:8787)
    ├─ /         ── built dashboard (dashboard/dist/)
    ├─ EventKit ── Calendar (read only)
    ├─ EventKit ── Reminders "Shopping"
+   ├─ EventKit ── Reminders per-person chore lists
    ├─ PhotoKit ── Photos: "Frame" album + "On this day"
    ├─ HTTPS ───── Hue Bridge CLIP v2 (LAN)
    └─ HTTPS ───── Open-Meteo (internet)
@@ -117,7 +119,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.11.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.12.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -126,6 +128,8 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/calendar?from&to` | Events overlapping a range (max 120 days), recurring events expanded |
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
 | `PATCH /api/shopping/{id}` | `{ done }`: check off or un-check a reminder |
+| `GET /api/chores` | Chores from the per-person Reminders lists: due by end of today (overdue included), undated, done today |
+| `PATCH /api/chores/{id}` | `{ done }`: check off or un-check a chore |
 | `GET /api/lights` | Hue rooms and zones, lights, scenes |
 | `PUT /api/lights/{id}` | `{ on?, level?, temp?, color? }` (`temp` and `color` not together) |
 | `PUT /api/rooms/{id}` | `{ on?, level? }`, for a room or zone (one Hue `grouped_light` request) |
@@ -135,7 +139,7 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
 | `GET /api/nowplaying` | What is playing on the Sonos room: `state`, and `title`, `artist`, `album`, `art`, `source` when known |
 | `GET /api/nowplaying/art?size=full\|half` | The current track's album art as a JPEG, resized on the Mac. `404` when none |
-| `GET /api/events` | SSE: `calendar`, `shopping`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene`, `nowplaying` (full objects) |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `chores`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene`, `nowplaying` (full objects) |
 | `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
@@ -155,6 +159,12 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 | `ShoppingItem.note` | `EKReminder.notes` |
 | `ShoppingItem.done` | `isCompleted`, completed items kept for a few hours |
 | `ShoppingItem.cat` / `store` | keyword → category/store map in frame-bridge config |
+| `Chore.id` | `EKReminder.calendarItemIdentifier` |
+| `Chore.who` | the person whose configured chore list holds the reminder |
+| `Chore.title` | reminder title |
+| `Chore.done` | `isCompleted`, completed chores kept for today only |
+| `Chore.due` / `allDay` | `dueDateComponents` (date only: local midnight and `allDay: true`) |
+| `Chore.notes` | `EKReminder.notes`, omitted when empty |
 | `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` or `zone` resource ids |
 | `Scene.icon` | scene name → icon map in frame-bridge config, omitted if unmapped |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
@@ -259,6 +269,17 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   restart, and the dashboard re-fetches on page load and on the fallback poll. If the fetch fails, the
   neutral placeholders in `data.js` ("Person 1" to "Person 4") stay, and a later failed poll keeps
   the live list.
+- **Chores from Reminders (v0.12.0, additive).** Owner decision (#67). Each `people` entry in the
+  private config may name a Reminders `chores` list; list names stay out of git. The feed is one
+  flat lane per person. Dropped from the mock: routines, stars, the week view, the "Anyone" lane and
+  who-did-it, because Reminders has no source for them. There is no `overdue` field: the dashboard
+  compares `due` with now. `due`, `allDay` and `notes` are for the views (#68, #69). Only `done`
+  is writable. On the wire, the `PATCH` response is the chore as it now appears, its `id` can differ
+  for a recurring chore, and undo goes to the response id. The bridge rule for recurring chores is
+  decided as option (b) (owner, #67): see the write rule under
+  [EventKit](#eventkit-on-the-mac-mini). It assumes that completing a recurring reminder moves the
+  original to its next due date and creates a completed copy with a new id. This is not yet
+  confirmed by the frame-bridge#60 spike, and no spike result had been posted as of 2026-10-16.
 
 ## Implementation notes
 
@@ -280,8 +301,11 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   Shared Album limit under [Photos](#photos-photokit)).
 - Subscribe to `EKEventStoreChanged` and re-query; debounce, since it fires in bursts.
 - Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes are limited to
-  `isCompleted` on items in the Shopping list. It needs full Reminders access (already requested with
-  `requestFullAccessToReminders`). Never create or delete reminders.
+  `isCompleted` on items in the Shopping list and in the configured chore lists. One exception,
+  only for recurring reminders in chore lists: un-checking a completed recurring chore (undo) may
+  remove the completed copy EventKit made and reset the original reminder's due date back. Never
+  create reminders; never delete anything else. It needs full Reminders access (already requested
+  with `requestFullAccessToReminders`).
 - HTTP framework: Hummingbird (lighter) or Vapor.
 
 ### Hue Bridge (CLIP v2)
@@ -448,12 +472,14 @@ per-phone token.
 3. **Calendar:** EventKit read, calendar→person map, wire the Calendar view (`src/views/calendar`), hide "Add to calendar".
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
    check-off write (`PATCH /api/shopping/{id}`), wire the Shopping view (`src/views/shopping`).
-5. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
-6. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
+5. **Chores:** EventKit reminders from the per-person chore lists, `GET /api/chores`, check-off
+   write (`PATCH /api/chores/{id}`), `chores` SSE and health. Wiring the views is #68 and #69.
+6. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
+7. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
    slideshow.
-7. **Sonos:** UPnP read, group coordinator, polling, `/api/nowplaying` and art, `nowplaying` SSE,
+8. **Sonos:** UPnP read, group coordinator, polling, `/api/nowplaying` and art, `nowplaying` SSE,
    `sonos` health. The dashboard card is a separate issue.
-8. **Hardening:** stale-data indicator, logs, restart on crash
+9. **Hardening:** stale-data indicator, logs, restart on crash
    (`KeepAlive` in the plist), document setup in this file.
 
 ## Open questions
@@ -461,6 +487,7 @@ per-phone token.
 - Which calendars to show. The calendar → person mapping lives in the bridge's `people` config.
 - Category/store strategy for shopping items. The contract assumes the server-side keyword map;
   the list of stores is still open.
+- The frame-bridge#60 spike must confirm the assumed EventKit behaviour for recurring chores.
 - A source for `travel` (drive time) on events, if "Leave by" is wanted.
 - Weather units: °C or °F (frame-bridge config).
 - Replacing the Mac mini: macOS 27 and later lifts the Shared Album limit. Until then the

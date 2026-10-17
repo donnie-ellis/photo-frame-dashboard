@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.11.0
-  summary: People, calendar, shopping list, lights, weather, photos and Sonos now playing for the family dashboard.
+  version: 0.12.0
+  summary: People, calendar, shopping list, chores, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
-    frame-bridge runs on the home Mac mini. It reads Apple Calendar and the Reminders "Shopping"
-    list through EventKit, talks to the Philips Hue Bridge over its local CLIP v2 API, reads the
+    frame-bridge runs on the home Mac mini. It reads Apple Calendar, the Reminders "Shopping"
+    list and the per-person chore lists through EventKit, talks to the Philips Hue Bridge over its local CLIP v2 API, reads the
     Photos library through PhotoKit, and fetches the forecast from Open-Meteo.
     Design notes, decisions and setup: [apple-integration.md](../apple-integration.md).
 
@@ -44,6 +44,11 @@ tags:
     description: |
       Apple Reminders "Shopping" list via EventKit. Items can be checked off and un-checked
       (`done` is writable through `setShoppingItem`). Nothing else on shopping is writable.
+  - name: chores
+    description: |
+      Apple Reminders chore lists via EventKit, one list per person (set in frame-bridge's
+      config). Chores can be checked off and un-checked (`done` is writable through `setChore`).
+      Nothing else on chores is writable.
   - name: lights
     description: Philips Hue via the Hue Bridge CLIP v2 API. Lights, rooms, zones and scenes.
   - name: weather
@@ -187,6 +192,68 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ShoppingItem' }
               example: { id: 'x-apple-reminder://0001', name: Bananas, note: 'Bunch, not too ripe', done: true, qty: 1, cat: Produce, store: grocer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/chores:
+    get:
+      operationId: listChores
+      tags: [chores]
+      summary: List the chores
+      description: |
+        Chores from the per-person Reminders lists: open chores due by the end of today (overdue
+        ones included), open chores with no due date, and chores completed today (`done: true`).
+        Chores due on a later day are left out. Sorted by person, in `/api/people` order, then by
+        due time. A chore is overdue when `due` is before now and `done` is false: there is no
+        separate flag. `setChore` writes `done`.
+      responses:
+        '200':
+          description: The chores.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChoreList' }
+              example:
+                chores:
+                  - { id: 'x-apple-reminder://c001', who: alex, title: Take out the bins, done: false, due: '2026-10-11T18:00:00-04:00' }
+                  - { id: 'x-apple-reminder://c002', who: jordan, title: Water the plants, done: false, due: '2026-10-12T00:00:00-04:00', allDay: true }
+                  - { id: 'x-apple-reminder://c003', who: maya, title: Tidy your room, done: false, notes: Floor and desk. }
+                  - { id: 'x-apple-reminder://c004', who: otto, title: Feed the fish, done: true, due: '2026-10-12T08:00:00-04:00' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/chores/{id}:
+    patch:
+      operationId: setChore
+      tags: [chores]
+      summary: Check a chore off or un-check it
+      description: |
+        Sets `EKReminder.isCompleted` from `done`, then saves. Only reminders in the configured
+        chore lists can be changed: any other id gets `404`. After the save the bridge sends a
+        `chores` `ChangeNotice` on `/api/events`.
+
+        The response is the chore as it now appears in the feed. For a recurring chore, checking
+        it off can give a different `id` from the one in the path, so the client replaces the
+        chore it patched (by the path id) with the response, and sends the undo (`done: false`)
+        to the response `id`. Un-checking a recurring chore restores the original, so the response
+        to that undo is the original chore, open, with its original `id` and `due`.
+      parameters:
+        - $ref: '#/components/parameters/ChoreId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChorePatch' }
+            example: { done: true }
+      responses:
+        '200':
+          description: The chore after the change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chore' }
+              example: { id: 'x-apple-reminder://c001', who: alex, title: Take out the bins, done: true, due: '2026-10-11T18:00:00-04:00' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -473,6 +540,7 @@ paths:
         | --- | --- | --- |
         | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
         | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
+        | `chores` | `ChangeNotice` | Re-fetch `/api/chores` |
         | `light` | `Light` | Replace that light in place |
         | `room` | `Room` | Replace that room or zone in place |
         | `scene` | `Scene` | Replace that scene in place |
@@ -528,6 +596,7 @@ paths:
                 feeds:
                   calendar: { status: ok, updatedAt: '2026-10-12T17:00:02-04:00', staleAfterSeconds: 900, authorization: fullAccess }
                   shopping: { status: ok, updatedAt: '2026-10-12T17:04:11-04:00', staleAfterSeconds: 300, authorization: fullAccess }
+                  chores: { status: ok, updatedAt: '2026-10-12T17:04:11-04:00', staleAfterSeconds: 300, authorization: fullAccess }
                   lights: { status: error, updatedAt: '2026-10-12T16:41:55-04:00', staleAfterSeconds: 120, detail: Hue Bridge not reachable }
                   weather: { status: ok, updatedAt: '2026-10-12T16:30:00-04:00', staleAfterSeconds: 7200 }
                   photos: { status: ok, updatedAt: '2026-10-12T06:00:00-04:00', staleAfterSeconds: 172800, authorization: authorized }
@@ -568,6 +637,12 @@ components:
       in: path
       required: true
       description: A `ShoppingItem.id`. Percent-encode it in the path, because the ids contain `://` and `/`.
+      schema: { type: string }
+    ChoreId:
+      name: id
+      in: path
+      required: true
+      description: A `Chore.id`. Percent-encode it in the path, because the ids contain `://` and `/`.
       schema: { type: string }
     LightId:
       name: id
@@ -753,6 +828,52 @@ components:
           type: boolean
           description: "`true` checks the item off, `false` un-checks it."
 
+    ChoreList:
+      type: object
+      required: [chores]
+      properties:
+        chores:
+          type: array
+          items: { $ref: '#/components/schemas/Chore' }
+
+    Chore:
+      type: object
+      required: [id, who, title, done]
+      properties:
+        id:
+          type: string
+          description: The reminder's `calendarItemIdentifier`.
+        who:
+          type: string
+          description: A `Person.id`, the person whose chore list holds the reminder.
+        title:
+          type: string
+          description: The reminder title.
+        done:
+          type: boolean
+          description: Completed. Completed chores are only included for today.
+        due:
+          type: string
+          format: date-time
+          description: |
+            Due date, with a UTC offset. An all-day chore (a date with no time) is local midnight
+            of that day. Omitted when the reminder has no due date.
+        allDay:
+          type: boolean
+          description: "`true` only when the reminder has a due date but no time. Omitted otherwise."
+        notes:
+          type: string
+          description: Reminder notes. Omitted when empty.
+
+    ChorePatch:
+      type: object
+      required: [done]
+      additionalProperties: false
+      properties:
+        done:
+          type: boolean
+          description: "`true` checks the chore off, `false` un-checks it."
+
     LightsState:
       type: object
       required: [rooms, devices, scenes]
@@ -900,7 +1021,7 @@ components:
         - type: object
           required: [event, data]
           properties:
-            event: { type: string, enum: [calendar, shopping, weather, photos, lights] }
+            event: { type: string, enum: [calendar, shopping, chores, weather, photos, lights] }
             data: { $ref: '#/components/schemas/ChangeNotice' }
         - type: object
           required: [event, data]
@@ -926,7 +1047,7 @@ components:
     ChangeNotice:
       type: object
       required: [changedAt]
-      description: '`data` of `calendar`, `shopping`, `weather`, `photos` and `lights` events: something changed, re-fetch.'
+      description: '`data` of `calendar`, `shopping`, `chores`, `weather`, `photos` and `lights` events: something changed, re-fetch.'
       properties:
         changedAt:
           type: string
@@ -949,7 +1070,7 @@ components:
         authorization:
           type: string
           description: |
-            Privacy authorization status. EventKit values for calendar and shopping, PhotoKit
+            Privacy authorization status. EventKit values for calendar, shopping and chores, PhotoKit
             values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather and sonos.
           enum: [fullAccess, writeOnly, authorized, limited, denied, restricted, notDetermined]
         detail:
@@ -969,11 +1090,12 @@ components:
           description: frame-bridge's implemented contract version (`info.version`).
         feeds:
           type: object
-          required: [calendar, shopping, lights, weather, photos]
+          required: [calendar, shopping, chores, lights, weather, photos]
           description: '`sonos` is optional: bridges without Sonos configured omit it.'
           properties:
             calendar: { $ref: '#/components/schemas/FeedHealth' }
             shopping: { $ref: '#/components/schemas/FeedHealth' }
+            chores: { $ref: '#/components/schemas/FeedHealth' }
             lights: { $ref: '#/components/schemas/FeedHealth' }
             weather: { $ref: '#/components/schemas/FeedHealth' }
             photos: { $ref: '#/components/schemas/FeedHealth' }
