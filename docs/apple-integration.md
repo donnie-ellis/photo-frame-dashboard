@@ -4,7 +4,7 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16, v0.13.0 (upcoming chores) 2026-10-17.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -13,7 +13,7 @@ Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 | People | frame-bridge config | Read only | `DATA.people` |
 | Calendar | Apple Calendar (iCloud) | Read only | `DATA.events` |
 | Shopping list | Apple Reminders, "Shopping" list | Read + check off | `DATA.groceries`, `DATA.stores` |
-| Chores | Apple Reminders, one list per person (frame-bridge config) | Read + check off | `DATA.chores` (routines, stars, week, Anyone lane and who-did-it dropped) |
+| Chores | Apple Reminders, one list per person (frame-bridge config) | Read + check off | `DATA.chores` (routines, stars, Anyone lane and who-did-it dropped; the week view is a rolling 7 days via `/api/chores/upcoming`) |
 | Lights | Philips Hue | Read state + toggle/dim | `DATA.devices` where `type: 'light'` (and `DATA.rooms`) |
 | Weather | Open-Meteo | Read only | `DATA.weather` |
 | Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
@@ -119,7 +119,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.12.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.13.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -129,6 +129,7 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/shopping` | Stores + items from the Reminders "Shopping" list |
 | `PATCH /api/shopping/{id}` | `{ done }`: check off or un-check a reminder |
 | `GET /api/chores` | Chores from the per-person Reminders lists: due by end of today (overdue included), undated, done today |
+| `GET /api/chores/upcoming` | Open chores from tomorrow to today + 6, repeating chores expanded, read only |
 | `PATCH /api/chores/{id}` | `{ done }`: check off or un-check a chore |
 | `GET /api/lights` | Hue rooms and zones, lights, scenes |
 | `PUT /api/lights/{id}` | `{ on?, level?, temp?, color? }` (`temp` and `color` not together) |
@@ -165,6 +166,11 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 | `Chore.done` | `isCompleted`, completed chores kept for today only |
 | `Chore.due` / `allDay` | `dueDateComponents` (date only: local midnight and `allDay: true`) |
 | `Chore.notes` | `EKReminder.notes`, omitted when empty |
+| `UpcomingChore.id` | `calendarItemIdentifier` plus the occurrence date. Not a `setChore` id |
+| `UpcomingChore.who` | the person whose configured chore list holds the reminder |
+| `UpcomingChore.title` | reminder title |
+| `UpcomingChore.due` / `allDay` | `dueDateComponents` for the current occurrence, else `EKRecurrenceRule` expansion (date only: local midnight and `allDay: true`) |
+| `UpcomingChore.notes` | `EKReminder.notes`, omitted when empty |
 | `Light.id` / `Room.id` | Hue CLIP v2 `light` / `room` or `zone` resource ids |
 | `Scene.icon` | scene name → icon map in frame-bridge config, omitted if unmapped |
 | `Light.level` | `dimming.brightness`, rounded, min 1. Kept while off |
@@ -280,6 +286,16 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   [EventKit](#eventkit-on-the-mac-mini). It assumes that completing a recurring reminder moves the
   original to its next due date and creates a completed copy with a new id. This is not yet
   confirmed by the frame-bridge#60 spike, and no spike result had been posted as of 2026-10-16.
+  The week view dropped here comes back in v0.13.0 (next bullet).
+- **Upcoming chores (v0.13.0, additive).** Owner decision (#73). It reverses the part of #67 and
+  v0.12.0 that dropped the week view. `GET /api/chores/upcoming` covers a rolling 7 days (today
+  plus the next 6, not calendar weeks); `/api/chores` still covers today. frame-bridge expands
+  repeating reminders across the window, because EventKit stores only the next occurrence, so a
+  weekly chore shows on every day it falls on. Future chores are read only: they can't be checked
+  off from the frame, and their ids are not `setChore` ids. A rule the bridge can't expand
+  (`setPositions`) gives the next occurrence only, and the bridge logs it. It reuses the `chores`
+  `ChangeNotice` and the `chores` health feed (one EventKit source). The Week mode UI is #75;
+  the bridge side is frame-bridge#61.
 
 ## Implementation notes
 
@@ -300,6 +316,8 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 - Intel Mac minis top out at macOS 15 Sequoia. Fine for these APIs (but see the
   Shared Album limit under [Photos](#photos-photokit)).
 - Subscribe to `EKEventStoreChanged` and re-query; debounce, since it fires in bursts.
+- Recurrence expansion for `/api/chores/upcoming` is read only: compute the dates from the
+  `EKRecurrenceRule`, never save or create reminders for them.
 - Read only for calendar: never call `save`/`remove` on `EKEvent`. Reminders writes are limited to
   `isCompleted` on items in the Shopping list and in the configured chore lists. One exception,
   only for recurring reminders in chore lists: un-checking a completed recurring chore (undo) may
@@ -473,7 +491,8 @@ per-phone token.
 4. **Shopping:** EventKit reminders from "Shopping", category/store strategy, live updates,
    check-off write (`PATCH /api/shopping/{id}`), wire the Shopping view (`src/views/shopping`).
 5. **Chores:** EventKit reminders from the per-person chore lists, `GET /api/chores`, check-off
-   write (`PATCH /api/chores/{id}`), `chores` SSE and health. Wiring the views is #68 and #69.
+   write (`PATCH /api/chores/{id}`), `GET /api/chores/upcoming` (frame-bridge#61), `chores` SSE and
+   health. Wiring the views is #68 and #69, the Week mode is #75.
 6. **Weather:** Open-Meteo fetch and cache, `/api/weather`, wire the weather tiles.
 7. **Photos:** shared album spike, PhotoKit read, image resize cache, "On this day", wire the
    slideshow.
