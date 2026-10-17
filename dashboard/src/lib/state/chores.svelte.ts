@@ -24,6 +24,12 @@ export function choreState(c: ChoreItem, now: Date): ChoreState {
   return +c.due < +now ? 'overdue' : 'today';
 }
 
+/** Not done and due: overdue or due today (undated chores don't count). */
+export function isDueNow(c: ChoreItem, now: Date): boolean {
+  const st = choreState(c, now);
+  return st === 'overdue' || st === 'today';
+}
+
 const RANK: Record<ChoreState, number> = { overdue: 0, today: 1, undated: 2, done: 3 };
 
 /** Overdue, then today (all-day first, then by time), then undated, then done. */
