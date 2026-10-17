@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.12.0
+  version: 0.13.0
   summary: People, calendar, shopping list, chores, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar, the Reminders "Shopping"
@@ -48,7 +48,8 @@ tags:
     description: |
       Apple Reminders chore lists via EventKit, one list per person (set in frame-bridge's
       config). Chores can be checked off and un-checked (`done` is writable through `setChore`).
-      Nothing else on chores is writable.
+      Nothing else on chores is writable. Upcoming chores (`listUpcomingChores`) are read only:
+      they can't be checked off.
   - name: lights
     description: Philips Hue via the Hue Bridge CLIP v2 API. Lights, rooms, zones and scenes.
   - name: weather
@@ -208,7 +209,8 @@ paths:
         ones included), open chores with no due date, and chores completed today (`done: true`).
         Chores due on a later day are left out. Sorted by person, in `/api/people` order, then by
         due time. A chore is overdue when `due` is before now and `done` is false: there is no
-        separate flag. `setChore` writes `done`.
+        separate flag. `setChore` writes `done`. Chores due on later days are in
+        `/api/chores/upcoming`.
       responses:
         '200':
           description: The chores.
@@ -221,6 +223,46 @@ paths:
                   - { id: 'x-apple-reminder://c002', who: jordan, title: Water the plants, done: false, due: '2026-10-12T00:00:00-04:00', allDay: true }
                   - { id: 'x-apple-reminder://c003', who: maya, title: Tidy your room, done: false, notes: Floor and desk. }
                   - { id: 'x-apple-reminder://c004', who: otto, title: Feed the fish, done: true, due: '2026-10-12T08:00:00-04:00' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/SourceUnavailable' }
+
+  /api/chores/upcoming:
+    get:
+      operationId: listUpcomingChores
+      tags: [chores]
+      summary: List the upcoming chores
+      description: |
+        Chores for the days after today. The window runs from local midnight at the start of
+        tomorrow to the end of the 6th day after today (local time), so with `/api/chores` the
+        dashboard covers a rolling 7 days.
+
+        Open reminders from the configured per-person lists whose due date falls in the window.
+        Every occurrence of a repeating reminder in the window is included: frame-bridge expands
+        the `EKRecurrenceRule` (end date and count are respected), because EventKit holds only the
+        next occurrence. The window starts after the reminder's current occurrence, so nothing
+        in `GET /api/chores` appears here twice. Completed and undated reminders are left out.
+        A recurring chore checked off today moves to its next due date, which can fall in the
+        window.
+
+        Sorted by `due`, then by person in `/api/people` order. A rule frame-bridge can't expand
+        (for example one with `setPositions`) yields the next occurrence only, and the bridge
+        logs it.
+
+        Read only: there is no write operation for upcoming chores. Refreshed by the existing
+        `chores` `ChangeNotice` on `/api/events`.
+      responses:
+        '200':
+          description: The upcoming chores.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpcomingChoreList' }
+              example:
+                chores:
+                  - { id: 'x-apple-reminder://c005/2026-10-13', who: jordan, title: Empty the dishwasher, due: '2026-10-13T19:00:00-04:00' }
+                  - { id: 'x-apple-reminder://c006/2026-10-14', who: maya, title: Practice piano, due: '2026-10-14T00:00:00-04:00', allDay: true }
+                  - { id: 'x-apple-reminder://c007/2026-10-15', who: otto, title: Pack the gym bag, due: '2026-10-15T07:30:00-04:00', notes: Shoes and water bottle. }
+                  - { id: 'x-apple-reminder://c005/2026-10-16', who: jordan, title: Empty the dishwasher, due: '2026-10-16T19:00:00-04:00' }
+                  - { id: 'x-apple-reminder://c001/2026-10-18', who: alex, title: Take out the bins, due: '2026-10-18T18:00:00-04:00' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/SourceUnavailable' }
 
@@ -540,7 +582,7 @@ paths:
         | --- | --- | --- |
         | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
         | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
-        | `chores` | `ChangeNotice` | Re-fetch `/api/chores` |
+        | `chores` | `ChangeNotice` | Re-fetch `/api/chores` and `/api/chores/upcoming` |
         | `light` | `Light` | Replace that light in place |
         | `room` | `Room` | Replace that room or zone in place |
         | `scene` | `Scene` | Replace that scene in place |
@@ -858,6 +900,40 @@ components:
           description: |
             Due date, with a UTC offset. An all-day chore (a date with no time) is local midnight
             of that day. Omitted when the reminder has no due date.
+        allDay:
+          type: boolean
+          description: "`true` only when the reminder has a due date but no time. Omitted otherwise."
+        notes:
+          type: string
+          description: Reminder notes. Omitted when empty.
+
+    UpcomingChoreList:
+      type: object
+      required: [chores]
+      properties:
+        chores:
+          type: array
+          items: { $ref: '#/components/schemas/UpcomingChore' }
+
+    UpcomingChore:
+      type: object
+      required: [id, who, title, due]
+      properties:
+        id:
+          type: string
+          description: |
+            Opaque. Stable for the same occurrence across fetches and unique per occurrence: a
+            weekly chore has a different `id` on each day. It is **not** a valid `ChoreId` for
+            `setChore`; upcoming chores can't be changed.
+        who:
+          $ref: '#/components/schemas/PersonId'
+        title:
+          type: string
+          description: The reminder title.
+        due:
+          type: string
+          format: date-time
+          description: Due date of this occurrence, with a UTC offset. An all-day chore is local midnight of that day.
         allDay:
           type: boolean
           description: "`true` only when the reminder has a due date but no time. Omitted otherwise."

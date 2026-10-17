@@ -110,9 +110,47 @@ export interface paths {
          *     ones included), open chores with no due date, and chores completed today (`done: true`).
          *     Chores due on a later day are left out. Sorted by person, in `/api/people` order, then by
          *     due time. A chore is overdue when `due` is before now and `done` is false: there is no
-         *     separate flag. `setChore` writes `done`.
+         *     separate flag. `setChore` writes `done`. Chores due on later days are in
+         *     `/api/chores/upcoming`.
          */
         get: operations["listChores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chores/upcoming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the upcoming chores
+         * @description Chores for the days after today. The window runs from local midnight at the start of
+         *     tomorrow to the end of the 6th day after today (local time), so with `/api/chores` the
+         *     dashboard covers a rolling 7 days.
+         *
+         *     Open reminders from the configured per-person lists whose due date falls in the window.
+         *     Every occurrence of a repeating reminder in the window is included: frame-bridge expands
+         *     the `EKRecurrenceRule` (end date and count are respected), because EventKit holds only the
+         *     next occurrence. The window starts after the reminder's current occurrence, so nothing
+         *     in `GET /api/chores` appears here twice. Completed and undated reminders are left out.
+         *     A recurring chore checked off today moves to its next due date, which can fall in the
+         *     window.
+         *
+         *     Sorted by `due`, then by person in `/api/people` order. A rule frame-bridge can't expand
+         *     (for example one with `setPositions`) yields the next occurrence only, and the bridge
+         *     logs it.
+         *
+         *     Read only: there is no write operation for upcoming chores. Refreshed by the existing
+         *     `chores` `ChangeNotice` on `/api/events`.
+         */
+        get: operations["listUpcomingChores"];
         put?: never;
         post?: never;
         delete?: never;
@@ -373,7 +411,7 @@ export interface paths {
          *     | --- | --- | --- |
          *     | `calendar` | `ChangeNotice` | Re-fetch `/api/calendar` for the visible range |
          *     | `shopping` | `ChangeNotice` | Re-fetch `/api/shopping` |
-         *     | `chores` | `ChangeNotice` | Re-fetch `/api/chores` |
+         *     | `chores` | `ChangeNotice` | Re-fetch `/api/chores` and `/api/chores/upcoming` |
          *     | `light` | `Light` | Replace that light in place |
          *     | `room` | `Room` | Replace that room or zone in place |
          *     | `scene` | `Scene` | Replace that scene in place |
@@ -535,6 +573,29 @@ export interface components {
              *     of that day. Omitted when the reminder has no due date.
              */
             due?: string;
+            /** @description `true` only when the reminder has a due date but no time. Omitted otherwise. */
+            allDay?: boolean;
+            /** @description Reminder notes. Omitted when empty. */
+            notes?: string;
+        };
+        UpcomingChoreList: {
+            chores: components["schemas"]["UpcomingChore"][];
+        };
+        UpcomingChore: {
+            /**
+             * @description Opaque. Stable for the same occurrence across fetches and unique per occurrence: a
+             *     weekly chore has a different `id` on each day. It is **not** a valid `ChoreId` for
+             *     `setChore`; upcoming chores can't be changed.
+             */
+            id: string;
+            who: components["schemas"]["PersonId"];
+            /** @description The reminder title. */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Due date of this occurrence, with a UTC offset. An all-day chore is local midnight of that day.
+             */
+            due: string;
             /** @description `true` only when the reminder has a due date but no time. Omitted otherwise. */
             allDay?: boolean;
             /** @description Reminder notes. Omitted when empty. */
@@ -1167,6 +1228,66 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["ChoreList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
+    listUpcomingChores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The upcoming chores. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "chores": [
+                     *         {
+                     *           "id": "x-apple-reminder://c005/2026-10-13",
+                     *           "who": "jordan",
+                     *           "title": "Empty the dishwasher",
+                     *           "due": "2026-10-13T19:00:00-04:00"
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c006/2026-10-14",
+                     *           "who": "maya",
+                     *           "title": "Practice piano",
+                     *           "due": "2026-10-14T00:00:00-04:00",
+                     *           "allDay": true
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c007/2026-10-15",
+                     *           "who": "otto",
+                     *           "title": "Pack the gym bag",
+                     *           "due": "2026-10-15T07:30:00-04:00",
+                     *           "notes": "Shoes and water bottle."
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c005/2026-10-16",
+                     *           "who": "jordan",
+                     *           "title": "Empty the dishwasher",
+                     *           "due": "2026-10-16T19:00:00-04:00"
+                     *         },
+                     *         {
+                     *           "id": "x-apple-reminder://c001/2026-10-18",
+                     *           "who": "alex",
+                     *           "title": "Take out the bins",
+                     *           "due": "2026-10-18T18:00:00-04:00"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["UpcomingChoreList"];
                 };
             };
             401: components["responses"]["Unauthorized"];
