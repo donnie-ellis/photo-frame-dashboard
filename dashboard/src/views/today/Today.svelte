@@ -1,6 +1,6 @@
 <script lang="ts">
   // Today: the glanceable overview. Fixed 1136 x 752 grid, never scrolls. Read-only except the
-  // shopping check-off and the room's light switches.
+  // shopping and chore check-offs and the room's light switches.
   import { untrack } from 'svelte';
   import type { ViewProps } from '../../lib/legacy.svelte';
   import { lights } from '../../lib/state/lights.svelte';

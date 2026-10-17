@@ -9,6 +9,7 @@ import { calendar } from './lib/state/calendar.svelte';
 import { shopping } from './lib/state/shopping.svelte';
 import { weather } from './lib/state/weather.svelte';
 import { photos } from './lib/state/photos.svelte';
+import { chores } from './lib/state/chores.svelte';
 import Calendar from './views/calendar/Calendar.svelte';
 import Control from './views/control/Control.svelte';
 import Chores from './views/chores/Chores.svelte';
@@ -27,7 +28,8 @@ registerView('photos', Photos);
 mountAmbientSlideshow();
 exposeFeeds();
 // These feeds feed several views (and the ambient screen), so they stay live for the page lifetime.
-for (const feed of [people, calendar, shopping, weather, photos]) feed.activate();
+// Chores feed both Today and Chores; activate is a flag, not ref-counted, so views must not toggle it.
+for (const feed of [people, calendar, shopping, weather, photos, chores]) feed.activate();
 mount(Toaster, { target: document.getElementById('stage')! });
 startUpdateWatch();
 
