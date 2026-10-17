@@ -2,6 +2,7 @@
 import { mount, type Component } from 'svelte';
 import type { CalEvent } from './state/calendar.svelte';
 import type { ShoppingItem, Store } from './api/frame-bridge';
+import type { ChoreItem } from './state/chores.svelte';
 import type { PhotoItem } from './state/photos.svelte';
 import type { WeatherData } from './state/weather.svelte';
 import { calendar } from './state/calendar.svelte';
@@ -88,6 +89,7 @@ export interface LegacyData {
   events: CalEvent[];
   groceries: ShoppingItem[];
   stores: Store[];
+  chores: ChoreItem[];
   catOrder: Record<string, string[]>;
   weather: WeatherData;
   photos: PhotoItem[];

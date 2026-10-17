@@ -108,55 +108,26 @@ window.DATA = (function () {
   ];
 
   // ---------------------------------------------------------------- chores
-  var routines = [
-    { id: 'morning', name: 'Morning', range: '6 – 11 AM', from: 0, to: 11 },
-    { id: 'after', name: 'After school', range: '11 AM – 5 PM', from: 11, to: 17 },
-    { id: 'evening', name: 'Evening', range: '5 – 10 PM', from: 17, to: 24 }
-  ];
+  // Same shape as GET /api/chores, with due as a Date. The demo clock is 15:18.
   var cid = 0;
-  function chore(r, who, title, emoji, stars, done, extra) {
-    return Object.assign({ id: 'c' + (++cid), r: r, who: who, title: title, emoji: emoji, stars: stars, done: !!done }, extra || {});
+  function chore(who, title, done, extra) {
+    return Object.assign({ id: 'c' + (++cid), who: who, title: title, done: !!done }, extra || {});
   }
   var chores = [
-    chore('morning', 'maya', 'Make bed', '🛏️', 1, true),
-    chore('morning', 'maya', 'Brush teeth', '🪥', 1, true),
-    chore('morning', 'maya', 'Pack backpack', '🎒', 1, true),
-    chore('morning', 'otto', 'Make bed', '🛏️', 1, true),
-    chore('morning', 'otto', 'Brush teeth', '🪥', 1, true),
-    chore('morning', 'otto', 'Get dressed', '👕', 1, false),
-    chore('morning', 'alex', 'School drop-off', '🚗', 0, true),
-    chore('morning', 'jordan', 'Pack lunches', '🥪', 0, true),
-    chore('morning', 'any', 'Feed Biscuit', '🐶', 1, true),
-
-    chore('after', 'maya', 'Unpack lunchbox', '🥪', 1, true),
-    chore('after', 'maya', 'Homework', '📚', 2, false),
-    chore('after', 'maya', 'Pack soccer bag', '⚽', 1, false),
-    chore('after', 'otto', 'Unpack lunchbox', '🥪', 1, true),
-    chore('after', 'otto', 'Read for 20 min', '📖', 2, false),
-    chore('after', 'otto', 'Practice piano', '🎹', 2, false),
-    chore('after', 'otto', 'Tidy the Lego', '🧱', 1, false),
-    chore('after', 'alex', 'Take out recycling', '♻️', 0, false, { overdue: true }),
-    chore('after', 'alex', 'Call the plumber', '☎️', 0, true),
-    chore('after', 'jordan', 'Fold laundry', '🧺', 0, false),
-    chore('after', 'jordan', 'Order Zoe’s gift', '🎁', 0, true),
-    chore('after', 'any', 'Water the plants', '🪴', 1, false),
-    chore('after', 'any', 'Empty dishwasher', '🍽️', 2, false),
-    chore('after', 'any', 'Walk Biscuit', '🐕', 2, true),
-
-    chore('evening', 'maya', 'Set the table', '🍴', 1, false),
-    chore('evening', 'maya', 'Lay out clothes', '👕', 1, false),
-    chore('evening', 'maya', 'Shower', '🚿', 1, false),
-    chore('evening', 'otto', 'Clear plates', '🍽️', 1, false),
-    chore('evening', 'otto', 'Bath', '🛁', 1, false),
-    chore('evening', 'otto', 'Lay out clothes', '👕', 1, false),
-    chore('evening', 'alex', 'Lock up', '🔐', 0, false),
-    chore('evening', 'jordan', 'Run dishwasher', '🫧', 0, false),
-    chore('evening', 'any', 'Wipe counters', '🧽', 1, false),
-    chore('evening', 'any', 'Garbage to curb', '🗑️', 2, false)
+    chore('alex', 'Take out recycling', false, { due: at(-1, '18:00') }),
+    chore('alex', 'Call the plumber', true, { due: at(0, '09:00') }),
+    chore('alex', 'Lock up', false, { due: at(0, '21:30') }),
+    chore('jordan', 'Fold laundry', false, { due: at(0, '00:00'), allDay: true }),
+    chore('jordan', 'Order Zoe’s gift', true, { due: at(0, '00:00'), allDay: true }),
+    chore('jordan', 'Run dishwasher', false, { due: at(0, '20:00'), notes: 'Pots on the top rack, filters in the sink.' }),
+    chore('maya', 'Unpack lunchbox', false, { due: at(0, '14:00') }),
+    chore('maya', 'Homework', false, { due: at(0, '17:30') }),
+    chore('maya', 'Pack soccer bag', false),
+    chore('otto', 'Read for 20 min', false, { due: at(0, '00:00'), allDay: true }),
+    chore('otto', 'Practice piano', false, { due: at(0, '18:00') }),
+    chore('otto', 'Make bed', true, { due: at(0, '08:00') }),
+    chore('otto', 'Tidy the Lego', false)
   ];
-  var stars = { maya: 42, otto: 57 };
-  // Mon..Sun, 1 = all chores done, 0 = missed, null = future
-  var week = { maya: [1, 1, 0, 1, 1, 0, 1], otto: [1, 0, 1, 1, 1, 1, 0] };
 
   // ---------------------------------------------------------------- shopping
   var stores = [{ id: 'grocer', name: 'FreshCo' }, { id: 'costco', name: 'Costco' }];
@@ -341,7 +312,7 @@ window.DATA = (function () {
   return {
     people: people, family: family, ALL: ALL,
     events: events, busyExtras: busyExtras,
-    routines: routines, chores: chores, stars: stars, week: week,
+    chores: chores,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,
     weather: weather, photos: photos, agents: agents,
