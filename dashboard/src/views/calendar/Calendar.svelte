@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Calendar: Today lanes (default), 3-day, rolling week, month. Read-only. Swipe on the body
+  // Calendar: Today lanes (default), 3-day, week (Sunday to Saturday), month. Read-only. Swipe on the body
   // changes the period; the arrows do the same.
   import { IconButton, Button, Segmented, Sheet, pressable } from '../../lib/ui';
   import type { ViewProps } from '../../lib/legacy.svelte';
@@ -33,7 +33,6 @@
     const tick = () => (now = App.now());
     const jump = () => {
       date = App.dayStart(App.now());
-      if (mode === 'month') date = new Date(date.getFullYear(), date.getMonth(), 1);
       tick();
     };
     tick();
@@ -45,8 +44,11 @@
     };
   });
 
+  // The week view shows the Sunday-to-Saturday week that contains `date`.
+  const weekStart = $derived(App.addDays(date, -date.getDay()));
+
   const title = $derived.by(() => {
-    const d = date;
+    const d = mode === 'week' ? weekStart : date;
     if (mode === 'day') {
       const rel = App.sameDay(d, now) ? 'Today' : App.fmt.rel(d);
       return { k: `${App.fmt.month(d)} ${d.getFullYear()} · ${rel}`, t: App.fmt.day(d), i: String(d.getDate()) };
@@ -63,7 +65,7 @@
     if (mode === 'week') {
       const w = App.addDays(d, 6);
       return {
-        k: 'Next 7 days',
+        k: String(w.getFullYear()),
         t: `${App.fmt.monthShort(d)} ${d.getDate()}`,
         i: '–',
         t2: `${App.fmt.monthShort(w)} ${w.getDate()}`,
@@ -72,7 +74,11 @@
     return { k: String(d.getFullYear()), t: App.fmt.month(d) };
   });
 
-  const isToday = $derived(mode === 'month' ? date.getMonth() === now.getMonth() : App.sameDay(date, now));
+  const isToday = $derived.by(() => {
+    if (mode === 'month') return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    if (mode === 'week') return App.sameDay(weekStart, App.addDays(now, -now.getDay()));
+    return App.sameDay(date, now);
+  });
 
   function nav(dir: number) {
     if (mode === 'month') date = new Date(date.getFullYear(), date.getMonth() + dir, 1);
@@ -81,11 +87,10 @@
 
   function today() {
     date = App.dayStart(App.now());
-    if (mode === 'month') date = new Date(date.getFullYear(), date.getMonth(), 1);
   }
 
+  // Keeps `date`: switching modes shows the period around the same day.
   function setMode(m: Mode) {
-    if (m === 'month') date = new Date(date.getFullYear(), date.getMonth(), 1);
     mode = m;
   }
 
@@ -156,7 +161,7 @@
     {:else if mode === '3day'}
       <ThreeDay {date} {now} onopen={(e) => openEvent(App.findEvent(e.id))} onmore={openMore} />
     {:else if mode === 'week'}
-      <Week {date} {now} onopen={(e) => openEvent(App.findEvent(e.id))} onday={openDay} />
+      <Week date={weekStart} {now} onopen={(e) => openEvent(App.findEvent(e.id))} onday={openDay} />
     {:else}
       <Month {date} {now} onday={openDay} />
     {/if}

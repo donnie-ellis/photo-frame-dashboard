@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Rolling seven days from the shown date. Tapping a column opens that day.
+  // Seven days from `date` (the Calendar passes a Sunday). Tapping a column opens that day.
   import { pressable } from '../../lib/ui';
   import { calendar, type CalEvent } from '../../lib/state/calendar.svelte';
 
@@ -45,7 +45,12 @@
           style={App.pstyle(App.evColor(e))}
           onclick={() => onopen(e)}
           {@attach pressable}>
-          <span class="cal-wt">{App.fmt.time(e.start, false)}</span>
+          <span class="cal-wt">
+            <span class="dots">
+              {#each App.isFamily(e) ? ['family'] : e.people as id (id)}<i style={App.pstyle(id)}></i>{/each}
+            </span>
+            {App.fmt.time(e.start, false)}
+          </span>
           <span class="cal-wn">{e.title}</span>
         </button>
       {/each}
@@ -103,16 +108,8 @@
   }
   .cal-wad:global(.is-pressed), .cal-wev:global(.is-pressed), .cal-wmore:global(.is-pressed), .cal-wfree:global(.is-pressed) { opacity: 0.7; }
   .cal-wev.is-past { opacity: 0.45; }
-  .cal-wt::before {
-    content: '';
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--c);
-    margin-right: 6px;
-    vertical-align: 1px;
-  }
+  .cal-wt .dots { margin-right: 6px; vertical-align: 1px; }
+  .cal-wt .dots i { width: 10px; height: 10px; }
   .cal-wt {
     font-size: var(--fs-min);
     font-weight: 800;
