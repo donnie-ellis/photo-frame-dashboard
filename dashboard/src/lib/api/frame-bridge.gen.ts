@@ -380,8 +380,16 @@ export interface paths {
         };
         /**
          * Get the album art of the current track, resized for the frame
-         * @description A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). Only art
-         *     hosted by the speaker (`/getaa`) is served; external art URLs (some radio) mean no art.
+         * @description A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). The source
+         *     is the track's `upnp:albumArtURI`:
+         *
+         *     - A speaker-relative `/getaa` path: fetched from the group coordinator.
+         *     - An external URL (Apple Music radio, for example): fetched only when it is `https` and its
+         *       host is `mzstatic.com` or a subdomain of it. No redirects off that host, an `image/*`
+         *       response, at most 5 MB, a 10 s timeout, and no cookies or credentials sent. Fetched once
+         *       per track and kept until the track changes, never once per request.
+         *     - Any other external URL: no art (`art: false`).
+         *
          *     The response has `Cache-Control: no-cache`, because the image changes per track.
          *
          *     The dashboard adds a per-track cache-buster query parameter (derived from title, artist
@@ -769,10 +777,18 @@ export interface components {
             room: string;
             /** @enum {string} */
             state: "playing" | "paused" | "stopped";
+            /**
+             * @description The track title. For radio streams the speaker leaves the usual track fields empty and
+             *     sends the song in `streamContent` instead; `title`, `artist` and `album` are taken from
+             *     there when present.
+             */
             title?: string;
             artist?: string;
             album?: string;
-            /** @description True when `/api/nowplaying/art` has an image for this track. */
+            /**
+             * @description True when `/api/nowplaying/art` can serve an image for this track: speaker-hosted art,
+             *     or external art from an allowed host (see that operation).
+             */
             art?: boolean;
             /** @enum {string} */
             source?: "music" | "tv" | "lineIn";
