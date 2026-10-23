@@ -4,7 +4,7 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16, v0.13.0 (upcoming chores) 2026-10-17.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16, v0.13.0 (upcoming chores) 2026-10-17, v0.14.0 (Sonos radio track and art) 2026-10-23.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -47,11 +47,14 @@ out of scope here.
   never sends a write action to Sonos. If the room is grouped, the group's track is shown, read
   from the group coordinator.
 - **Sonos over local UPnP (port 1400), not the Sonos cloud API.** The cloud API needs OAuth and
-  internet. Open-Meteo stays frame-bridge's only internet call.
+  internet. Besides Open-Meteo, frame-bridge's only internet call is album art from Apple's image
+  server (below).
 - **Polling (about 5 s while playing, 15 s otherwise), not GENA subscriptions.** GENA needs an
   unauthenticated NOTIFY callback route, which breaks "the token middleware covers every route".
-- **Album art only when the speaker hosts it** (`/getaa`). External art URLs (some radio) mean no
-  art, so no extra internet calls.
+- **Album art from the speaker (`/getaa`), or from Apple's image server for radio.** Apple Music
+  radio gives the song's art only as an external `mzstatic.com` URL; the speaker's own `/getaa` for
+  the stream is just the station logo. So frame-bridge fetches external art from `mzstatic.com`
+  only, with the limits in the spec. Any other external URL still means no art.
 
 ### Rejected options and why
 
@@ -188,8 +191,8 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
 | `Photo.fav` | `isFavorite` |
 | `Photo.focus` | Vision (faces → people → saliency) union, padded, flipped to top-left origin, cached per asset |
 | `NowPlaying.room` | config `room` (ZoneGroupTopology on `host` finds its group coordinator) |
-| `NowPlaying.title` / `artist` / `album` | DIDL-Lite `dc:title` / `dc:creator` / `upnp:album` |
-| `NowPlaying.art` | `upnp:albumArtURI` as a speaker-relative `/getaa` path: `true`. An external URL: `false` |
+| `NowPlaying.title` / `artist` / `album` | DIDL-Lite `dc:title` / `dc:creator` / `upnp:album`. When `dc:title` is empty and `r:streamContent` is set (radio), parse `streamContent` instead: `\|`-separated fields, `TITLE x` → `title`, `ARTIST x` → `artist`, `ALBUM x` → `album` (other fields, e.g. `TYPE=SNG`, ignored). No `TITLE` field (DJ talk, ads): no track fields |
+| `NowPlaying.art` | `upnp:albumArtURI` as a speaker-relative `/getaa` path, or an `https` URL on `mzstatic.com` (or a subdomain): `true`. Any other external URL: `false` |
 | `NowPlaying.state` | `CurrentTransportState`: `PLAYING` → `playing`, `PAUSED_PLAYBACK` → `paused`, `STOPPED` / `NO_MEDIA_PRESENT` → `stopped`. `TRANSITIONING` keeps the last state (no SSE); a first read while `TRANSITIONING` → `playing` |
 | `NowPlaying.source` | track URI scheme: `x-sonos-htastream:` → `tv`, `x-rincon-stream:` → `lineIn`, otherwise `music` |
 
@@ -258,6 +261,11 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   card shows only when `state` is `playing` and `title` is present. `sonos` is **optional** in
   `Health.feeds`, so bridges without Sonos configured, and existing bridges, still validate; the
   dashboard tolerates a missing feed key.
+- **Sonos radio track and art (v0.14.0, additive).** No schema change. On Apple Music radio
+  (seen 2026-10-23 on "Apple Music 1") the speaker reports `PLAYING` with an empty `dc:title` and the
+  song in `r:streamContent` (`TYPE=SNG|TITLE …|ARTIST …|ALBUM …`), and the art as an `mzstatic.com`
+  URL. Before this, the bridge sent no title, so the card never showed. The art host is
+  allow-listed rather than any URL, so a speaker can't make the bridge fetch arbitrary addresses.
 - **Cross-origin writes refused (v0.9.0, additive).** Every write operation also documents `403`
   `forbidden`. See [Auth](#auth-per-frame-tokens). The dashboard needs no change: writes already roll
   back and toast on any non-2xx, and in production the page and API share one origin.
@@ -394,8 +402,9 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   `GetTransportInfo` and `GetPositionInfo` on the coordinator, at port 1400.
 - Poll about every 5 s while playing, about every 15 s otherwise. Send a `nowplaying` SSE event only
   when the value changes.
-- Art: fetch the coordinator's `/getaa` path, resize like photos (`full` / `half`), `Cache-Control:
-  no-cache`, `404` when the track has none.
+- Art: fetch the coordinator's `/getaa` path, or an allowed `mzstatic.com` URL (see the spec for
+  the limits), once per track. Resize like photos (`full` / `half`), `Cache-Control: no-cache`, `404`
+  when the track has none.
 - Read only: no AVTransport or RenderingControl actions that change anything.
 
 ### Weather (Open-Meteo)

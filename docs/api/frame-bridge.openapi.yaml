@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: frame-bridge
-  version: 0.13.0
+  version: 0.14.0
   summary: People, calendar, shopping list, chores, lights, weather, photos and Sonos now playing for the family dashboard.
   description: |
     frame-bridge runs on the home Mac mini. It reads Apple Calendar, the Reminders "Shopping"
@@ -526,6 +526,9 @@ paths:
                 playing:
                   summary: Playing a track with album art
                   value: { room: Kitchen, state: playing, title: Example Song, artist: Example Artist, album: Example Album, art: true, source: music }
+                radio:
+                  summary: A radio stream (song from streamContent, external art)
+                  value: { room: Kitchen, state: playing, title: Radio Song, artist: Radio Artist, album: Radio Album, art: true, source: music }
                 nextTrack:
                   summary: A second track, without art
                   value: { room: Kitchen, state: playing, title: Another Song, artist: Another Artist, album: Another Album, art: false, source: music }
@@ -544,8 +547,16 @@ paths:
       tags: [sonos]
       summary: Get the album art of the current track, resized for the frame
       description: |
-        A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). Only art
-        hosted by the speaker (`/getaa`) is served; external art URLs (some radio) mean no art.
+        A JPEG resized on the Mac mini, with the same sizes as photos (never upscaled). The source
+        is the track's `upnp:albumArtURI`:
+
+        - A speaker-relative `/getaa` path: fetched from the group coordinator.
+        - An external URL (Apple Music radio, for example): fetched only when it is `https` and its
+          host is `mzstatic.com` or a subdomain of it. No redirects off that host, an `image/*`
+          response, at most 5 MB, a 10 s timeout, and no cookies or credentials sent. Fetched once
+          per track and kept until the track changes, never once per request.
+        - Any other external URL: no art (`art: false`).
+
         The response has `Cache-Control: no-cache`, because the image changes per track.
 
         The dashboard adds a per-track cache-buster query parameter (derived from title, artist
@@ -1190,12 +1201,19 @@ components:
         state:
           type: string
           enum: [playing, paused, stopped]
-        title: { type: string }
+        title:
+          type: string
+          description: |
+            The track title. For radio streams the speaker leaves the usual track fields empty and
+            sends the song in `streamContent` instead; `title`, `artist` and `album` are taken from
+            there when present.
         artist: { type: string }
         album: { type: string }
         art:
           type: boolean
-          description: True when `/api/nowplaying/art` has an image for this track.
+          description: |
+            True when `/api/nowplaying/art` can serve an image for this track: speaker-hosted art,
+            or external art from an allowed host (see that operation).
         source:
           type: string
           enum: [music, tv, lineIn]
