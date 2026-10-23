@@ -39,7 +39,15 @@ class CalendarStore {
     const to = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DAYS_AHEAD);
     try {
       const list = await api.listEvents(from, to);
-      this.events = list.map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+      // The spec says ids are unique, but the bridge has sent one copy per person. Merge them:
+      // the views key on id, and a duplicate key stops the whole view from rendering.
+      const byId = new Map<string, CalEvent>();
+      for (const e of list) {
+        const seen = byId.get(e.id);
+        if (seen) seen.people = [...new Set([...seen.people, ...e.people])];
+        else byId.set(e.id, { ...e, start: new Date(e.start), end: new Date(e.end) });
+      }
+      this.events = [...byId.values()];
       this.#fresh.ok();
       writeLegacy('events', this.events);
     } catch {

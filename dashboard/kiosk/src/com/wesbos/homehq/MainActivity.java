@@ -3,6 +3,7 @@ package com.wesbos.homehq;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,6 +20,7 @@ import android.webkit.WebViewClient;
 /**
  * Full-screen kiosk WebView for the Home HQ wall tablet.
  * - Immersive mode hides the status + navigation bars (true 1280x800).
+ * - It is also a Home app, so it starts at boot once chosen as the default Home.
  * - Exit: hold two fingers still on the screen for 1.5s to go to the regular launcher.
  * - Remote debugging is OFF unless launched with the debug extra (every app on this device
  *   gets root, so the devtools socket should only exist while actively debugging):
@@ -51,6 +53,13 @@ public class MainActivity extends Activity {
       Intent home = new Intent(Intent.ACTION_MAIN);
       home.addCategory(Intent.CATEGORY_HOME);
       home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      // When the kiosk is the default Home, a plain Home intent would just reopen it.
+      for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, 0)) {
+        if (!ri.activityInfo.packageName.equals(getPackageName())) {
+          home.setClassName(ri.activityInfo.packageName, ri.activityInfo.name);
+          break;
+        }
+      }
       startActivity(home);
       finish();
     }

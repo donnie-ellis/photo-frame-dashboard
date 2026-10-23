@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Month grid, Monday first, with one dot per event (up to five). Tapping a day opens it.
+  // Month grid, Sunday first, with one dot per event (up to five). Tapping a day opens it.
   import { pressable } from '../../lib/ui';
   import { calendar } from '../../lib/state/calendar.svelte';
 
@@ -13,13 +13,13 @@
     onday: (d: Date) => void;
   } = $props();
   const App = window.App;
-  const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const cells = $derived.by(() => {
     // Read only for the dependency: the helpers read window.DATA.events.
     calendar.events;
     const first = new Date(date.getFullYear(), date.getMonth(), 1);
-    const start = App.addDays(first, -((first.getDay() + 6) % 7));
+    const start = App.addDays(first, -first.getDay());
     return Array.from({ length: 42 }, (_, i) => {
       const d = App.addDays(start, i);
       const evs = [...App.allDayOn(d), ...App.timedOn(d)];

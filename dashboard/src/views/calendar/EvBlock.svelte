@@ -43,6 +43,7 @@
   class:is-short={short}
   class:is-family={family}
   class:is-half={half}
+  class:has-with={others.length > 0}
   style="{App.pstyle(App.evColor(e))};top:{top}px;height:{height}px;left:{left};width:{width}"
   onclick={() => onopen(e)}
   {@attach pressable}>
@@ -103,16 +104,17 @@
   }
   .is-short { flex-direction: row; align-items: center; gap: 8px; padding-top: 0; padding-bottom: 0; }
   .is-short .cal-ev-title { font-size: 16px; padding-right: 0; flex: none; max-width: 60%; }
-  .is-short .cal-ev-with { display: none; }
+  .is-short .cal-ev-with { position: static; margin-left: auto; flex: none; }
   .is-half.is-short .cal-ev-meta { display: none; }
   .is-half.is-short .cal-ev-title { max-width: 100%; flex: 1; min-width: 0; }
-  .is-half .cal-ev-with { display: none; }
+  .is-half.is-short .cal-ev-with { margin-left: 0; }
   .is-half .cal-ev-title { padding-right: 0; }
+  .is-half.has-with:not(.is-short) .cal-ev-title { padding-right: 30px; }
   .is-past { opacity: 0.38; }
   .is-now { box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--c); z-index: 2; }
   .is-family { background: var(--ink); color: var(--on-ink); }
   .cal-ev-with { position: absolute; right: 8px; top: 9px; }
-  .cal-ev-with i { box-shadow: 0 0 0 2px var(--card); }
+  .cal-ev-with i { box-shadow: 0 0 0 2px var(--c-ink); }
   .cal-ev-travel {
     position: absolute;
     left: 8px;
