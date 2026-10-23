@@ -56,19 +56,23 @@ Rules:
 
 ## The device
 
-The only target is the **BIUFRAME** (Synergy 10X1), a wall-mounted touch screen, used by the whole
-family including kids. There is no mouse, keyboard, or other screen size.
+The only target is a frame sold as **BIUFRAME** that is actually the **PF1007L** (Allwinner A33,
+AiMOR firmware, USB-C only), a wall-mounted touch screen, used by the whole family including kids.
+There is no mouse, keyboard, or other screen size. It is not the Rockchip "Synergy 10X1"
+BIUFRAME: set it up with `docs/pf1007l-start-here.md`, never `scripts/biuframe-setup.sh` or
+Rockchip tools.
 
-- **1280×800, landscape, fixed.** The panel is natively 800×1280 portrait, and Android rotates it.
-  No responsive layouts, no breakpoints, no viewport units for layout: design to the pixel grid.
+- **1280×800, landscape, fixed.** No responsive layouts, no breakpoints, no viewport units for
+  layout: design to the pixel grid.
 - **Android 6 with WebView 106.** JS output is `chrome106`, and CSS is `chrome61` on purpose: the
   WebView rejects 4/8-digit hex colors, so use `rgba()`. Don't change the `vite.config.js` targets.
   Also none of: CSS nesting, `color-mix()`, `oklch()`, `dvh`/`svh`, `:has()` in hot paths, View
   Transitions, Popover API, or any JS API newer than Chrome 106.
-- **Weak hardware:** an RK3126 (quad Cortex-A7), about 1 GB RAM, and a Mali-400 GPU. Assume painting
-  happens on the CPU. Smooth interaction matters more than anything else in the UI.
-- There is no device to test on yet. Keep this in mind, and say "not verified on the device" when
-  a performance claim depends on it.
+- **Weak hardware:** an Allwinner A33 (quad Cortex-A7), 1 GiB RAM, and a Mali-400 MP2 GPU. Assume
+  painting happens on the CPU. Smooth interaction matters more than anything else in the UI.
+- The frame is set up (2026-10-23): root ADB over USB, WebView 106, and the kiosk as the Home app,
+  loading the dashboard from frame-bridge. Check performance claims on it (`adb -d`), or say
+  "not verified on the device".
 
 ## UI stack
 
