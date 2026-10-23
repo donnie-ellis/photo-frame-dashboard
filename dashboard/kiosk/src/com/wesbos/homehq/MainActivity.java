@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -13,6 +14,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -30,6 +33,8 @@ import android.webkit.WebViewClient;
  *   sent as the frame_token cookie to the saved URL's host only:
  *     adb shell am start -n com.wesbos.homehq/.MainActivity --es url http://<mac-ip>:8787/ --es token <token>
  *   Changing the url without a token clears the saved token, so it never follows a new host.
+ * - If the page fails to load (at boot, Wi-Fi often isn't up yet), it retries with backoff, up to
+ *   every 30s, until it loads.
  */
 public class MainActivity extends Activity {
   static final String TAG = "HomeHQ";
@@ -37,6 +42,8 @@ public class MainActivity extends Activity {
   static final String TOKEN_COOKIE = "frame_token";
   static final long EXIT_HOLD_MS = 1500;
   static final float EXIT_SLOP_PX = 60;
+  static final long RETRY_MIN_MS = 2000;
+  static final long RETRY_MAX_MS = 30000;
 
   private WebView web;
   private final Handler handler = new Handler(Looper.getMainLooper());
@@ -44,6 +51,17 @@ public class MainActivity extends Activity {
   private final float[] exitX = new float[2];
   private final float[] exitY = new float[2];
   private boolean exitArmed;
+  private boolean loadFailed;
+  private long retryMs = RETRY_MIN_MS;
+  private String retryUrl;
+
+  private final Runnable retryLoad = new Runnable() {
+    @Override
+    public void run() {
+      Log.i(TAG, "Retrying " + retryUrl);
+      web.loadUrl(retryUrl);
+    }
+  };
 
   private final Runnable exitToLauncher = new Runnable() {
     @Override
@@ -78,7 +96,7 @@ public class MainActivity extends Activity {
     s.setDomStorageEnabled(true);
     s.setUseWideViewPort(true);
     s.setMediaPlaybackRequiresUserGesture(false);
-    web.setWebViewClient(new WebViewClient()); // keep navigation inside the kiosk
+    web.setWebViewClient(new KioskClient()); // keep navigation inside the kiosk
     setContentView(web);
 
     saveConfig(getIntent());
@@ -97,6 +115,34 @@ public class MainActivity extends Activity {
       if (url == null) url = prefs().getString("url", DEFAULT_URL);
     }
     if (url != null) web.loadUrl(url);
+  }
+
+  /** Retries the page when the main frame can't load, e.g. Wi-Fi isn't up yet at boot. */
+  private class KioskClient extends WebViewClient {
+    @Override
+    public void onPageStarted(WebView view, String url, Bitmap favicon) {
+      handler.removeCallbacks(retryLoad);
+      loadFailed = false;
+    }
+
+    @Override
+    public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
+      if (req.isForMainFrame()) scheduleRetry(req.getUrl().toString(), "error " + err.getErrorCode() + " " + err.getDescription());
+    }
+
+    @Override
+    public void onPageFinished(WebView view, String url) {
+      if (!loadFailed) retryMs = RETRY_MIN_MS;
+    }
+  }
+
+  private void scheduleRetry(String url, String why) {
+    loadFailed = true;
+    retryUrl = url;
+    Log.w(TAG, "Load failed (" + why + "), retrying in " + retryMs + "ms: " + url);
+    handler.removeCallbacks(retryLoad);
+    handler.postDelayed(retryLoad, retryMs);
+    retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
   }
 
   private SharedPreferences prefs() {
