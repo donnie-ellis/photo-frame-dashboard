@@ -19,6 +19,8 @@
   const key = $derived(nowPlaying.artKey);
   // Art that failed to load, per track.
   let failedKey = $state('');
+  // Art that has finished loading, per track. It fades in so a slow JPEG never paints row by row.
+  let loadedKey = $state('');
   const showArt = $derived(!!np?.art && failedKey !== key);
 
   let washes = $state.raw<{ key: string; canvas: HTMLCanvasElement }[]>([]);
@@ -98,10 +100,16 @@
       ></div>
     {/each}
     <div class="ams-art">
+      <span class="ams-ph"><Icon name="music" size={96} /></span>
       {#if showArt}
-        <img src={nowPlayingArtUrl(key, 'half')} alt="" onerror={() => (failedKey = key)} />
-      {:else}
-        <span class="ams-ph"><Icon name="music" size={96} /></span>
+        <img
+          class:loaded={loadedKey === key}
+          src={nowPlayingArtUrl(key, 'half')}
+          alt=""
+          decoding="async"
+          onload={() => (loadedKey = key)}
+          onerror={() => (failedKey = key)}
+        />
       {/if}
     </div>
     <div class="ams-cap">
@@ -145,11 +153,17 @@
     background: var(--photo-fill);
   }
   .ams-art img {
+    position: absolute;
+    top: 0;
+    left: 0;
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.3s var(--ease);
   }
+  .ams-art img.loaded { opacity: 1; }
   .ams-ph {
     display: flex;
     align-items: center;

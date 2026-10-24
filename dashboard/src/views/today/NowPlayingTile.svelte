@@ -10,14 +10,23 @@
   const key = $derived(nowPlaying.artKey);
   // Art that failed to load, per track.
   let failedKey = $state('');
+  // Art that has finished loading, per track. It fades in so a slow JPEG never paints row by row.
+  let loadedKey = $state('');
   const showArt = $derived(!!np?.art && failedKey !== key);
 </script>
 
 <button class="td-np" onclick={() => App.go('photos')} {@attach pressable}>
+  <span class="td-np-ph"><Icon name="music" size={48} /></span>
   {#if showArt}
-    <img class="td-np-art" src={nowPlayingArtUrl(key, 'half')} alt="" onerror={() => (failedKey = key)} />
-  {:else}
-    <span class="td-np-ph"><Icon name="music" size={48} /></span>
+    <img
+      class="td-np-art"
+      class:loaded={loadedKey === key}
+      src={nowPlayingArtUrl(key, 'half')}
+      alt=""
+      decoding="async"
+      onload={() => (loadedKey = key)}
+      onerror={() => (failedKey = key)}
+    />
   {/if}
   <span class="td-np-cap">
     <b>{np?.room}</b>
@@ -38,7 +47,8 @@
     transition: transform 0.15s var(--ease);
   }
   .td-np:global(.is-pressed) { transform: scale(0.985); transition-duration: 0s; }
-  .td-np-art { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  .td-np-art { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s var(--ease); }
+  .td-np-art.loaded { opacity: 1; }
   .td-np-ph {
     position: absolute;
     top: 0;
