@@ -26,6 +26,7 @@ export type Weather = components['schemas']['Weather'];
 export type WeatherCondition = components['schemas']['WeatherCondition'];
 export type Photo = components['schemas']['Photo'];
 export type NowPlaying = components['schemas']['NowPlaying'];
+export type DaySummary = components['schemas']['DaySummary'];
 
 const TIMEOUT_MS = 8000;
 
@@ -100,3 +101,4 @@ export const getNowPlaying = () => request<NowPlaying>('/api/nowplaying');
 /** `key` is the per-track cache-buster (the server ignores it). */
 export const nowPlayingArtUrl = (key: string, size: 'full' | 'half' = 'half') =>
   '/api/nowplaying/art?size=' + size + '&v=' + encodeURIComponent(key);
+export const getDaySummary = () => request<DaySummary>('/api/summary');

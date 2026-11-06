@@ -314,8 +314,9 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   400 characters. There is no `stale` state: when the events or chores change and a new summary
   can't be made, the old one is dropped (503), because a summary that names a cancelled event is
   worse than none. A `summary` `ChangeNotice` covers both a new summary and a dropped one. `summary`
-  is optional in `Health.feeds`, like `sonos`. No view reads it yet: the Today view wiring is a
-  separate dashboard issue. The prompt, model and schedule live in frame-bridge, not the contract.
+  is optional in `Health.feeds`, like `sonos`. The Today view shows it as plain text between the
+  next-up card and the lanes (#90), and only when `date` is today. The next-up card then shrinks to
+  time and title. The prompt, model and schedule live in frame-bridge, not the contract.
 
 ## Implementation notes
 
@@ -572,7 +573,6 @@ per-phone token.
   never-upgrade rule stands (see [Photos](#photos-photokit)).
 - Day summary: whole day or "rest of today"? v0.15.0 summarizes the whole day; an afternoon summary
   then still mentions the morning.
-- Day summary placement on the Today view (dashboard issue).
 
 ## Breaking changes
 

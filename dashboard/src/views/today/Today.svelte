@@ -5,11 +5,13 @@
   import type { ViewProps } from '../../lib/legacy.svelte';
   import { lights } from '../../lib/state/lights.svelte';
   import { nowPlaying } from '../../lib/state/nowplaying.svelte';
+  import { summary } from '../../lib/state/summary.svelte';
   import Clock from './Clock.svelte';
   import Weather from './Weather.svelte';
   import LightsCard from './LightsCard.svelte';
   import NextUp from './NextUp.svelte';
   import Lanes from './Lanes.svelte';
+  import DaySummary from './DaySummary.svelte';
   import PhotoTile from './PhotoTile.svelte';
   import ShoppingCard from './ShoppingCard.svelte';
   import NowPlayingTile from './NowPlayingTile.svelte';
@@ -19,6 +21,12 @@
   let now = $state.raw(window.App.now());
   // Weather and the lanes only need to change on the hour.
   const hourKey = $derived(`${now.getMonth()}-${now.getDate()}-${now.getHours()}`);
+
+  // Local day (not toISOString, which is UTC): a summary only shows on its own date.
+  const dayKey = $derived(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+  );
+  const sumText = $derived(summary.textFor(dayKey));
 
   // Every minute (and when the demo clock jumps) while visible.
   $effect(() => {
@@ -44,14 +52,27 @@
     untrack(() => nowPlaying.activate());
     return () => nowPlaying.deactivate();
   });
+
+  $effect(() => {
+    if (!active) return;
+    untrack(() => summary.activate());
+    return () => summary.deactivate();
+  });
+
+  $effect(() => {
+    if (!active) return;
+    const k = dayKey;
+    untrack(() => summary.dayChanged(k));
+  });
 </script>
 
 <div class="td">
   <div class="td-clock"><Clock {now} /></div>
   <div class="td-weather"><Weather {hourKey} /></div>
   <div class="td-lights"><LightsCard /></div>
-  <div class="td-main">
-    <NextUp {now} />
+  <div class="td-main" class:td-main--sum={!!sumText}>
+    <NextUp {now} compact={!!sumText} />
+    {#if sumText}<DaySummary text={sumText} />{/if}
     <Lanes {now} />
   </div>
   <div class="td-side">
@@ -83,6 +104,7 @@
     min-height: 0;
     min-width: 0;
   }
+  .td-main--sum { grid-template-rows: 104px auto 1fr; }
   .td-side {
     grid-column: 8 / 13;
     display: grid;
