@@ -4,7 +4,7 @@
   import { calendar } from '../../lib/state/calendar.svelte';
   import { openEvent } from '../calendar/openEvent.svelte';
 
-  let { now }: { now: Date } = $props();
+  let { now, compact = false }: { now: Date; compact?: boolean } = $props();
   const App = window.App;
 
   const next = $derived.by(() => {
@@ -21,25 +21,27 @@
 </script>
 
 {#if e}
-  <button class="td-hero" style={App.pstyle(App.evColor(e))} onclick={() => openEvent(App.findEvent(e.id))} {@attach pressable}>
+  <button class="td-hero" class:td-hero--compact={compact} style={App.pstyle(App.evColor(e))} onclick={() => openEvent(App.findEvent(e.id))} {@attach pressable}>
     <span class="td-hero-main">
-      <span class="label label--on">Next up · {who}</span>
+      {#if !compact}<span class="label label--on">Next up · {who}</span>{/if}
       <span class="td-hero-title serif">{e.title}</span>
-      <span class="td-hero-meta">{App.fmt.range(e.start, e.end)}{e.loc ? ' · ' + e.loc : ''}</span>
-      <span class="td-hero-foot">
-        {#if e.people.length > 1}
-          <span class="dots">
-            {#each e.people as id (id)}<i style="{App.pstyle(id)};width:22px;height:22px"></i>{/each}
-          </span>
-        {/if}
-        {#if e.travel}
-          {#if leave <= 0}
-            <span class="pill pill--alert"><i class="pulse"></i>Leave now</span>
-          {:else}
-            <span class="pill" class:pill--soon={leave <= 15}><Icon name="car" size={20} />Leave in {App.fmt.mins(leave)}</span>
+      {#if !compact}
+        <span class="td-hero-meta">{App.fmt.range(e.start, e.end)}{e.loc ? ' · ' + e.loc : ''}</span>
+        <span class="td-hero-foot">
+          {#if e.people.length > 1}
+            <span class="dots">
+              {#each e.people as id (id)}<i style="{App.pstyle(id)};width:22px;height:22px"></i>{/each}
+            </span>
           {/if}
-        {/if}
-      </span>
+          {#if e.travel}
+            {#if leave <= 0}
+              <span class="pill pill--alert"><i class="pulse"></i>Leave now</span>
+            {:else}
+              <span class="pill" class:pill--soon={leave <= 15}><Icon name="car" size={20} />Leave in {App.fmt.mins(leave)}</span>
+            {/if}
+          {/if}
+        </span>
+      {/if}
     </span>
     {#if mins < 100}
       <span class="td-hero-count num">{Math.round(mins)}<small>min</small></span>
@@ -48,10 +50,14 @@
     {/if}
   </button>
 {:else}
-  <button class="td-hero td-hero--empty" onclick={() => App.go('calendar')} {@attach pressable}>
-    <span class="label label--light">Rest of today</span>
-    <span class="td-hero-title serif">Nothing else scheduled.<br /><i>Enjoy the quiet.</i></span>
-    {#if next.tomorrow}
+  <button class="td-hero td-hero--empty" class:td-hero--compact={compact} onclick={() => App.go('calendar')} {@attach pressable}>
+    {#if compact}
+      <span class="td-hero-title serif">Nothing else scheduled.</span>
+    {:else}
+      <span class="label label--light">Rest of today</span>
+      <span class="td-hero-title serif">Nothing else scheduled.<br /><i>Enjoy the quiet.</i></span>
+    {/if}
+    {#if next.tomorrow && !compact}
       <span class="td-hero-meta">Tomorrow starts with <b>{next.tomorrow.title}</b> at {App.fmt.time(next.tomorrow.start)}</span>
     {/if}
   </button>
@@ -105,4 +111,18 @@
   }
   .td-hero--empty { background: var(--ink); color: var(--paper); flex-direction: column; justify-content: center; gap: 0; }
   .td-hero--empty .td-hero-title { white-space: normal; font-size: 56px; }
+  /* Shorter card while a day summary shows: time and title only. */
+  .td-hero--compact { padding: 14px 26px; align-items: center; }
+  .td-hero--compact .td-hero-main { justify-content: center; }
+  .td-hero--compact .td-hero-title { font-size: var(--fs-xl); margin: 0; }
+  .td-hero--compact .td-hero-count {
+    font-size: var(--fs-xl);
+    line-height: 1;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .td-hero--compact .td-hero-count small { font-size: var(--fs-m); margin-top: 0; }
+  .td-hero--empty.td-hero--compact { flex-direction: row; justify-content: flex-start; }
 </style>
