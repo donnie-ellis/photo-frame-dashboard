@@ -4,7 +4,7 @@ Status: plan, not started. Written 2026-10-11. API contract v0.1.0 written 2026-
 v0.2.0 (LAN hosting, per-frame tokens) 2026-10-13, v0.3.0 (weather, photos) 2026-10-13,
 v0.4.0 (room and zone control, scenes) 2026-10-13, v0.5.0 (shopping check-off) 2026-10-14, v0.6.0 (lights change notice) 2026-10-14,
 v0.7.0 (light color and temperature) 2026-10-15, v0.8.0 (Sonos now playing) 2026-10-15,
-v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16, v0.13.0 (upcoming chores) 2026-10-17, v0.14.0 (Sonos radio track and art) 2026-10-23.
+v0.9.0 (cross-origin writes refused) 2026-10-15, v0.10.0 (photo focus) 2026-10-15, v0.11.0 (people from config) 2026-10-16, v0.12.0 (chores from Reminders) 2026-10-16, v0.13.0 (upcoming chores) 2026-10-17, v0.14.0 (Sonos radio track and art) 2026-10-23, v0.15.0 (day summary) 2026-11-05.
 
 Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 
@@ -18,6 +18,7 @@ Goal: replace these mock feeds in `dashboard/js/data.js` with real data:
 | Weather | Open-Meteo | Read only | `DATA.weather` |
 | Photos | Apple Photos: "Frame" album + "On this day" | Read only | `DATA.photos` |
 | Now playing | Sonos (local UPnP, one room) | Read only | `DATA.media` (no view reads it yet; the card is a separate issue) |
+| Day summary | Cloudflare Workers AI, from today's events and chores | Read only | Nothing (new; the Today view shows its normal content without it) |
 
 People's status (`status`, `eta`, `home`) has no real source and is being removed from the UI (see
 [People's status](#peoples-status)). The other mocks (climate, media, cameras, agents) are
@@ -33,7 +34,7 @@ out of scope here.
   process means one privacy grant and one thing to deploy. Hue is plain HTTPS from the same process.
 - **Served on the LAN, no Cloudflare.** frame-bridge serves the built dashboard and the API from one
   origin. The frames and the Mac mini share a network, so a Worker, Tunnel and Access add setup and
-  secrets for nothing. It also keeps working when the internet is down (except weather) and keeps
+  secrets for nothing. It also keeps working when the internet is down (except weather and the day summary) and keeps
   Hue taps local. Cost: no access from outside the house (add Tailscale if that's ever wanted), and
   if the Mac mini is down the frame shows an error page instead of stale data.
 - **One token per frame.** See [Auth](#auth-per-frame-tokens).
@@ -47,14 +48,17 @@ out of scope here.
   never sends a write action to Sonos. If the room is grouped, the group's track is shown, read
   from the group coordinator.
 - **Sonos over local UPnP (port 1400), not the Sonos cloud API.** The cloud API needs OAuth and
-  internet. Besides Open-Meteo, frame-bridge's only internet call is album art from Apple's image
-  server (below).
+  internet. Its internet calls are listed under [Day summary](#day-summary-cloudflare-workers-ai).
 - **Polling (about 5 s while playing, 15 s otherwise), not GENA subscriptions.** GENA needs an
   unauthenticated NOTIFY callback route, which breaks "the token middleware covers every route".
 - **Album art from the speaker (`/getaa`), or from Apple's image server for radio.** Apple Music
   radio gives the song's art only as an external `mzstatic.com` URL; the speaker's own `/getaa` for
   the stream is just the station logo. So frame-bridge fetches external art from `mzstatic.com`
   only, with the limits in the spec. Any other external URL still means no art.
+- **Day summary from Cloudflare Workers AI** (owner decision, 2026-11-05). A small hosted model
+  turns today's events and chores into one to three sentences. The free tier covers a few dozen
+  calls a day. It is the first feed that sends household data off the LAN, so what goes out is
+  fixed in the spec and below. Optional: no summary means the normal view.
 
 ### Rejected options and why
 
@@ -87,7 +91,8 @@ Mac mini: frame-bridge (Swift, LaunchAgent, <mac-ip>:8787)
    ├─ EventKit ── Reminders per-person chore lists
    ├─ PhotoKit ── Photos: "Frame" album + "On this day"
    ├─ HTTPS ───── Hue Bridge CLIP v2 (LAN)
-   └─ HTTPS ───── Open-Meteo (internet)
+   ├─ HTTPS ───── Open-Meteo (internet)
+   └─ HTTPS ───── Cloudflare Workers AI (internet, day summary)
 ```
 
 Give the Mac mini a DHCP reservation and use its IP in the frame URL: Android 6 can't be relied on
@@ -122,7 +127,7 @@ stopping a determined attacker.
 
 ## API contract (frame-bridge)
 
-The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.13.0). It is the
+The contract is [`api/frame-bridge.openapi.yaml`](api/frame-bridge.openapi.yaml) (v0.15.0). It is the
 source of truth for paths, schemas and errors. This section only explains the choices behind it.
 
 | Endpoint | Purpose |
@@ -143,7 +148,8 @@ source of truth for paths, schemas and errors. This section only explains the ch
 | `GET /api/photos/{id}/image?size=full\|half` | The photo as a JPEG, resized on the Mac |
 | `GET /api/nowplaying` | What is playing on the Sonos room: `state`, and `title`, `artist`, `album`, `art`, `source` when known |
 | `GET /api/nowplaying/art?size=full\|half` | The current track's album art as a JPEG, resized on the Mac. `404` when none |
-| `GET /api/events` | SSE: `calendar`, `shopping`, `chores`, `weather`, `photos`, `lights` (re-fetch notices), `light`, `room`, `scene`, `nowplaying` (full objects) |
+| `GET /api/summary` | Today's summary: `date`, `text`. `503` when there is none for today |
+| `GET /api/events` | SSE: `calendar`, `shopping`, `chores`, `weather`, `photos`, `lights`, `summary` (re-fetch notices), `light`, `room`, `scene`, `nowplaying` (full objects) |
 | `GET /healthz` | Per-feed status, `updatedAt`, `staleAfterSeconds`, privacy authorization |
 
 ### Field mapping (source → dashboard)
@@ -304,6 +310,12 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   (`setPositions`) gives the next occurrence only, and the bridge logs it. It reuses the `chores`
   `ChangeNotice` and the `chores` health feed (one EventKit source). The Week mode UI is #75;
   the bridge side is frame-bridge#61.
+- **Day summary (v0.15.0, additive).** `GET /api/summary` is `{ date, text }`, plain text, at most
+  400 characters. There is no `stale` state: when the events or chores change and a new summary
+  can't be made, the old one is dropped (503), because a summary that names a cancelled event is
+  worse than none. A `summary` `ChangeNotice` covers both a new summary and a dropped one. `summary`
+  is optional in `Health.feeds`, like `sonos`. No view reads it yet: the Today view wiring is a
+  separate dashboard issue. The prompt, model and schedule live in frame-bridge, not the contract.
 
 ## Implementation notes
 
@@ -415,6 +427,42 @@ Field names follow what `dashboard/js/views/*.js` and `dashboard/src/views/` rea
   copy when a fetch fails.
 - Free for non-commercial use, no key. Keep requests low anyway.
 
+### Day summary (Cloudflare Workers AI)
+
+- frame-bridge calls the Workers AI REST API directly
+  (`POST https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{model}`), with
+  `URLSession`. No Worker, no SDK. The account id and an API token scoped to Workers AI only go in
+  the login Keychain. The model name is in the config (e.g. `@cf/meta/llama-3.1-8b-instruct`).
+- Generated in the background: once early in the day (the first run after 05:00 local), then after
+  a debounced `calendar` or `chores` change (at least 5 minutes apart), at most 24 times a day.
+  Never in a request handler, never once per frame.
+- The reply is trimmed and checked: empty or over 400 characters is a failure. Markdown is not
+  stripped or rendered, only rejected by the prompt; the dashboard shows plain text.
+- Failure keeps no stale text: no summary, `summary` health `error` with `detail`, 503, and a
+  `summary` notice so the frames drop it.
+
+#### Privacy
+
+This is the first feed that sends household data to an internet service. Weather sends nothing
+private (the coordinates go to Open-Meteo, which is the point), and Sonos art sends a track's art
+URL to Apple. The day summary sends what is on the family's calendar.
+
+- **Sent, per request:** today's date; for each of today's events, its title, its start and end
+  time (or "all day") and the first names of its people; for each of today's chores, its title,
+  the person's first name, its due time and whether it is done.
+- **Never sent:** event locations and notes, chore notes, attendees, ids of any kind, shopping
+  items, photos or places, weather or the home coordinates, frame names or tokens, calendar or list
+  names.
+- **Names:** people's `name` from the config is sent, because "Maya has the dentist" reads better
+  than "P3 has the dentist". Use first names or nicknames in the config if that matters.
+- **Cloudflare:** Workers AI requests go to Cloudflare's network and run there. Cloudflare's
+  documentation says customer data sent to Workers AI is not used to train models. That is a policy,
+  not something frame-bridge can check. Anyone who can't accept event titles leaving the house
+  leaves the `summary` section out of the config: the feed is off and nothing is sent.
+- **Logs:** never the prompt, the reply or any event or chore text at `info` or above.
+- **Off switch:** removing the config section turns the feed off at the next restart.
+  Revoking the API token in the Cloudflare dashboard stops it at once.
+
 ### Serving the dashboard
 
 - frame-bridge serves a directory of static files at `/` (the copied `dashboard/dist/`) and the API
@@ -509,6 +557,8 @@ per-phone token.
    `sonos` health. The dashboard card is a separate issue.
 9. **Hardening:** stale-data indicator, logs, restart on crash
    (`KeepAlive` in the plist), document setup in this file.
+10. **Day summary:** Workers AI client, background generation, `/api/summary`, `summary` SSE and
+    health. Wiring the Today view is a separate dashboard issue.
 
 ## Open questions
 
@@ -520,6 +570,9 @@ per-phone token.
 - Weather units: °C or °F (frame-bridge config).
 - Replacing the Mac mini: macOS 27 and later lifts the Shared Album limit. Until then the
   never-upgrade rule stands (see [Photos](#photos-photokit)).
+- Day summary: whole day or "rest of today"? v0.15.0 summarizes the whole day; an afternoon summary
+  then still mentions the morning.
+- Day summary placement on the Today view (dashboard issue).
 
 ## Breaking changes
 
@@ -530,5 +583,5 @@ per-phone token.
 
 ## Secrets (never commit)
 
-Hue application key, pinned Hue cert, frame tokens, the home coordinates for weather, the Sonos speaker IP. Keychain (or a config file outside the repo) on
+Hue application key, pinned Hue cert, frame tokens, the home coordinates for weather, the Sonos speaker IP, the Cloudflare account id and Workers AI API token. Keychain (or a config file outside the repo) on
 the Mac; each frame's token lives only on that frame.

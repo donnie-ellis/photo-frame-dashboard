@@ -404,6 +404,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the summary of today
+         * @description One to three plain-text sentences about today's events and chores, written by a language
+         *     model on Cloudflare Workers AI. frame-bridge generates it in the background, never in this
+         *     handler: once early in the day, and again after a debounced `calendar` or `chores` change,
+         *     with a daily cap. Every frame gets the same cached summary.
+         *
+         *     What frame-bridge sends to the model, and nothing else: for today's events, the `title`,
+         *     the start and end time (or "all day") and the names of the `people`; for today's chores
+         *     (`GET /api/chores`, open or done), the `title`, the name of the `who` person, the due time
+         *     and whether it is done. Never `loc`, `notes`, ids, shopping items, photos, weather or
+         *     anything from config other than people's names. See "Day summary" in apple-integration.md.
+         *
+         *     The summary always matches the current data. When the events or chores change and the
+         *     new summary can't be generated, frame-bridge drops the old one rather than serve text
+         *     that is out of date. It is also dropped at local midnight.
+         *
+         *     Returns `503` (`source_unavailable`) when there is no summary for today: not configured,
+         *     not generated yet, the model unreachable or its reply rejected (empty or too long), or
+         *     the daily cap reached after a change. The dashboard then shows its normal view.
+         */
+        get: operations["getDaySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -427,6 +464,7 @@ export interface paths {
          *     | `weather` | `ChangeNotice` | Re-fetch `/api/weather` |
          *     | `photos` | `ChangeNotice` | Re-fetch `/api/photos` (album changed, the daily re-sample, or a batch of new focus values) |
          *     | `nowplaying` | `NowPlaying` | Replace the now playing state in place (sent only when it changes) |
+         *     | `summary` | `ChangeNotice` | Re-fetch `/api/summary` (a new summary, or the old one was dropped) |
          *
          *     The server sends a `: ping` comment every 25 s to keep proxies from closing the stream, and
          *     a `retry: 5000` line on connect. If the stream fails, the dashboard polls every 30 s.
@@ -706,7 +744,7 @@ export interface components {
         /** @description One SSE message: `event` is the SSE `event:` line, `data` is the JSON on the `data:` line. */
         ServerEvent: {
             /** @enum {string} */
-            event: "calendar" | "shopping" | "chores" | "weather" | "photos" | "lights";
+            event: "calendar" | "shopping" | "chores" | "weather" | "photos" | "lights" | "summary";
             data: components["schemas"]["ChangeNotice"];
         } | {
             /** @constant */
@@ -725,7 +763,7 @@ export interface components {
             event: "nowplaying";
             data: components["schemas"]["NowPlaying"];
         };
-        /** @description `data` of `calendar`, `shopping`, `chores`, `weather`, `photos` and `lights` events: something changed, re-fetch. */
+        /** @description `data` of `calendar`, `shopping`, `chores`, `weather`, `photos`, `lights` and `summary` events: something changed, re-fetch. */
         ChangeNotice: {
             /** Format: date-time */
             changedAt: string;
@@ -742,7 +780,7 @@ export interface components {
             staleAfterSeconds: number;
             /**
              * @description Privacy authorization status. EventKit values for calendar, shopping and chores, PhotoKit
-             *     values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather and sonos.
+             *     values (`authorized`, `limited`, ...) for photos. Omitted for lights, weather, sonos and summary.
              * @enum {string}
              */
             authorization?: "fullAccess" | "writeOnly" | "authorized" | "limited" | "denied" | "restricted" | "notDetermined";
@@ -757,7 +795,7 @@ export interface components {
             status: "ok" | "degraded";
             /** @description frame-bridge's implemented contract version (`info.version`). */
             version: string;
-            /** @description `sonos` is optional: bridges without Sonos configured omit it. */
+            /** @description `sonos` and `summary` are optional: bridges without them configured omit them. */
             feeds: {
                 calendar: components["schemas"]["FeedHealth"];
                 shopping: components["schemas"]["FeedHealth"];
@@ -766,6 +804,8 @@ export interface components {
                 weather: components["schemas"]["FeedHealth"];
                 photos: components["schemas"]["FeedHealth"];
                 sonos?: components["schemas"]["FeedHealth"];
+                /** @description `updatedAt` is the last successful generation. `error` with `detail` while there is no summary for today. */
+                summary?: components["schemas"]["FeedHealth"];
             };
         };
         /**
@@ -792,6 +832,21 @@ export interface components {
             art?: boolean;
             /** @enum {string} */
             source?: "music" | "tv" | "lineIn";
+        };
+        /** @description A short summary of today, written by a language model from today's events and chores. */
+        DaySummary: {
+            /**
+             * Format: date
+             * @description The local day it summarizes (`YYYY-MM-DD`). The dashboard ignores a summary whose
+             *     `date` isn't today, in case it fetched just before midnight.
+             */
+            date: string;
+            /**
+             * @description Plain text, one to three sentences. No markdown or HTML: the dashboard shows it as
+             *     text. The model can get details wrong, so the dashboard shows it next to the real
+             *     events, never instead of them.
+             */
+            text: string;
         };
         /**
          * @description Hourly arrays for today and tomorrow, local time. Index `i` is the hour starting at `start`
@@ -930,7 +985,8 @@ export interface components {
         /**
          * @description The source behind this feed is unavailable: EventKit or Photos access not granted,
          *     Reminders list or "Frame" album missing, Hue Bridge unreachable, or no forecast fetched
-         *     yet, or no people configured. The dashboard keeps showing what it had.
+         *     yet, or no people configured, or no day summary for today. The dashboard keeps showing
+         *     what it had (for the summary: its normal view).
          */
         SourceUnavailable: {
             headers: {
@@ -1900,6 +1956,34 @@ export interface operations {
             503: components["responses"]["SourceUnavailable"];
         };
     };
+    getDaySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Today's summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "date": "2026-10-12",
+                     *       "text": "Otto has Pajama Day at school, and Maya and Jordan are off to the dentist at noon. Alex is on bins tonight."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["DaySummary"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["SourceUnavailable"];
+        };
+    };
     streamEvents: {
         parameters: {
             query?: never;
@@ -1991,6 +2075,11 @@ export interface operations {
                      *           "status": "ok",
                      *           "updatedAt": "2026-10-12T17:04:30-04:00",
                      *           "staleAfterSeconds": 60
+                     *         },
+                     *         "summary": {
+                     *           "status": "ok",
+                     *           "updatedAt": "2026-10-12T06:00:04-04:00",
+                     *           "staleAfterSeconds": 86400
                      *         }
                      *       }
                      *     }
