@@ -287,8 +287,7 @@ launcher, WebView 106, kiosk and memory. Known differences on these units, from
 
 ## For agents
 
-- First, [check for new issues and pull requests](../README.md#check-for-updates-and-send-back-what-you-find).
-  This page summarizes PRs #2 to #5. A newer PR may cover your unit.
+- This page summarizes upstream PRs #2 to #5. This fork doesn't track newer ones.
 - Run T1 to T6 in order. They are read-only for the frame's eMMC. Do not start T4 or T5 until
   T3 (USB ADB) and T3b (network ADB) have both failed. T4 and T5 write only to a spare
   SD card, and only with the owner's approval.
@@ -302,7 +301,7 @@ launcher, WebView 106, kiosk and memory. Known differences on these units, from
 ## Report your unit
 
 Open an issue or PR with this, whether your unit passed or failed. Each report makes the tested range
-wider. Agents: follow [the README's PR steps](../README.md#check-for-updates-and-send-back-what-you-find).
+wider.
 
 ```text
 About model / firmware:

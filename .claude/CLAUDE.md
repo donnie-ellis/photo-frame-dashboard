@@ -22,8 +22,8 @@ described in `docs/apple-integration.md`.
 
 ## Upstream
 
-- Ignore upstream. Never open issues or PRs on `wesbos/photo-frame-dashboard`, never run the `gh`
-  commands from the README's "For agents" section, and never add `upstream` as a remote.
+- Ignore upstream. Never open issues or PRs on `wesbos/photo-frame-dashboard`, and never add
+  `upstream` as a remote.
 - `origin` is `donnie-ellis/photo-frame-dashboard`. PRs go there, from a branch, against `main`.
 - The README's device-safety rules still apply if we ever touch frame hardware: ask before every
   write, no writes without a verified backup, keep dumps out of git.

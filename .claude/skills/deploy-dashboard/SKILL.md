@@ -10,8 +10,6 @@ frame-bridge on the Mac mini serves the built dashboard to every frame (`docs/ap
 "Serving the dashboard"). Deploying means copying `dashboard/dist/` into the directory it serves.
 Every step that changes something needs the user's go-ahead in this conversation.
 
-Until frame-bridge serves static files (phase 1), there is nothing to deploy to. Say so and stop.
-
 ## 1. Pre-flight (read only)
 
 ```sh
@@ -20,8 +18,9 @@ git status --short                     # uncommitted changes? say so
 git log --oneline origin/main..HEAD    # deploying something not on main? say so
 ```
 
-Ask the user for the Mac mini's address and the directory frame-bridge serves, if they haven't given
-them in this conversation. Don't write them into the repo.
+Get the Mac mini's address, login user and the directory frame-bridge serves (`dashboardDir`) from
+your memory, or ask the user. Confirm them with the user. Don't write them into the repo. The target is
+frame-bridge on the Mac mini, not the frame or another Android device on the LAN.
 
 Stop and ask if the working tree is dirty or HEAD isn't on `main`.
 
@@ -33,17 +32,26 @@ fails them.
 ## 3. Deploy (after confirmation)
 
 Show the user the commit, the host and the directory. Claude doesn't run the copy; the user does,
-keeping the current version as `<dir>.previous` for rollback:
+keeping the current version as `<dir>.previous` for rollback. Quote the paths, since they may
+contain spaces. macOS's built-in `rsync` (openrsync) needs spaces in the remote path escaped with
+`\ `:
 
 ```
-! ssh <mac> 'rm -rf <dir>.previous && cp -a <dir> <dir>.previous' && rsync -a --delete dashboard/dist/ <mac>:<dir>/
+! ssh <user>@<mac-ip> 'd="<dir>"; rm -rf "$d.previous" && cp -a "$d" "$d.previous"' && rsync -a --delete dashboard/dist/ '<user>@<mac-ip>:<dir with spaces escaped>/'
 ```
+
+`!` can't answer prompts. If SSH fails with `Host key verification failed`, the Mac mini's key isn't
+saved yet: have the user accept it in a terminal, or run
+`! ssh -o StrictHostKeyChecking=accept-new <user>@<mac-ip> true`, then rerun the copy.
 
 ## 4. Check it
 
 - `curl -s -o /dev/null -w '%{http_code}' -b 'frame_token=<token>' http://<mac-ip>:8787/` returns
   200, and `/healthz` answers. Without the cookie, both return 401.
-- The kiosk app only shows the new version after a reload. Tell the user to reload the frames.
+- Without the token you can still check the copy over SSH: the `index.html` in `<dir>` references
+  the same `assets/index-*.js` and `.css` as the local `dist/`, and `<dir>.previous` exists.
+- Frames reload themselves once idle (the dashboard polls `/` every 15 s; see the README's
+  Deploy section). Tell the user, and say it wasn't checked on the frame.
 - Report the deployed commit.
 
 ## Rollback
